@@ -1,0 +1,10 @@
+PyQt6>=6.6
+matplotlib>=3.8
+numpy>=1.26
+Pillow>=10.0
+opencv-python>=4.8
+
+# 실제 RTMDet 학습/추론은 이 앱이 아니라 별도 학습 스크립트(subprocess)와
+# src/detection.py의 RTMDetInferencer(3번 탭에서 사용)에서 필요.
+# 그 파일이 요구하는 torch/mmengine/mmcv/mmdetection은 별도로 설치해야 한다
+# (이 GUI 자체는 그 없이도 켜지고, 실제 학습/추론을 실행할 때만 필요).
