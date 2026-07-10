@@ -62,8 +62,8 @@ class TrainingTab(QWidget):
         self.runner: TrainRunner | None = None
         self._build_ui()
 
-        # 프로젝트 폴더 안의 기본 config/작업 디렉토리를 자동으로 채워둔다.
-        self.workdir_edit.setText(str(PROJECT_ROOT))
+        # 학습 스크립트는 항상 프로젝트 루트를 작업 디렉토리로 사용한다 (내부 처리, UI 노출 안 함).
+        self._working_dir = str(PROJECT_ROOT)
         if DEFAULT_CONFIG_PATH.is_file():
             self.config_edit.setText(str(DEFAULT_CONFIG_PATH))
 
@@ -121,20 +121,6 @@ class TrainingTab(QWidget):
         ckpt_row.addWidget(btn_check_best)
         layout.addLayout(ckpt_row)
 
-        wd_row = QHBoxLayout()
-        wd_row.addWidget(QLabel("작업 디렉토리 (scripts/ 폴더가 있는 프로젝트 루트)"))
-        self.workdir_edit = QLineEdit()
-        self.workdir_edit.setPlaceholderText("예: ~/binpicking_vision/RTM_test")
-        wd_row.addWidget(self.workdir_edit, stretch=1)
-        btn_browse_wd = QPushButton("선택")
-        btn_browse_wd.clicked.connect(self._on_browse_workdir)
-        wd_row.addWidget(btn_browse_wd)
-        layout.addLayout(wd_row)
-
-        layout.addWidget(QLabel("실행 커맨드 (템플릿 - {dataset}, {config} 자동 치환)"))
-        self.command_edit = QLineEdit(DEFAULT_COMMAND_TEMPLATE)
-        layout.addWidget(self.command_edit)
-
         cards_row = QHBoxLayout()
         self.card_epoch = MetricCard("Epoch")
         self.card_loss = MetricCard("loss")
@@ -180,11 +166,6 @@ class TrainingTab(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, "체크포인트 선택", "", "PyTorch (*.pth)")
         if path:
             self.checkpoint_edit.setText(path)
-
-    def _on_browse_workdir(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "프로젝트 루트 폴더 선택")
-        if folder:
-            self.workdir_edit.setText(folder)
 
     def _on_check_start_point(self) -> None:
         cfg_path = self.config_edit.text().strip()
@@ -233,13 +214,8 @@ class TrainingTab(QWidget):
             actual_cfg_path = make_config_with_override(cfg_path, override)
             self.log_message.emit(f"override 적용된 config 생성: {actual_cfg_path}")
 
-        template = self.command_edit.text().strip()
-        if "{dataset}" not in template or "{config}" not in template:
-            QMessageBox.warning(
-                self, "설정 확인 필요", "실행 커맨드에 {dataset}, {config} 자리표시자가 필요합니다."
-            )
-            return
-        command = template.format(dataset=dataset, config=actual_cfg_path)
+        # 실행 커맨드/작업 디렉토리는 UI에 노출하지 않고 내부적으로 결정한다.
+        command = DEFAULT_COMMAND_TEMPLATE.format(dataset=dataset, config=actual_cfg_path)
 
         epochs = self.epochs_edit.text().strip()
         if epochs:
@@ -247,8 +223,6 @@ class TrainingTab(QWidget):
                 QMessageBox.warning(self, "설정 확인 필요", "--epochs 값은 숫자여야 합니다.")
                 return
             command += f" --epochs {epochs}"
-
-        working_dir = self.workdir_edit.text().strip() or None
 
         self._loss_history.clear()
         self._map_history.clear()
@@ -259,8 +233,8 @@ class TrainingTab(QWidget):
         self.runner.progress.connect(self._on_progress)
         self.runner.finished.connect(self._on_finished)
         self.runner.error.connect(self._on_error)
-        self.runner.start(command, working_dir=working_dir)
-        self.log_message.emit(f"학습 실행: {command} (cwd={working_dir or '현재 디렉토리'})")
+        self.runner.start(command, working_dir=self._working_dir)
+        self.log_message.emit(f"학습 시작 (dataset={dataset}, epochs={epochs or 'config 기본값'})")
         self.btn_start.setEnabled(False)
 
     def _on_stop(self) -> None:

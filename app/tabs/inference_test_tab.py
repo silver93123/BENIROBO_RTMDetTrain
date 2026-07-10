@@ -2,6 +2,9 @@
 
 실제 파이프라인(3_Detect_and_PickPoint.py)과 동일하게 체크포인트 + config
 두 가지를 모두 지정해야 RTMDetInferencer를 만들 수 있다.
+
+이미지는 한 장씩 파일 다이얼로그로 불러오는 대신, 폴더를 지정하면 그 안의
+이미지들을 목록으로 펼쳐두고 목록에서 골라 미리보기 -> 추론 실행하는 방식.
 """
 from __future__ import annotations
 
@@ -14,9 +17,12 @@ from PyQt6.QtWidgets import (
 )
 
 from app.core.detector import Detector, Detection
+from app.core.config_patcher import find_latest_best_checkpoint
+from app.core.paths import DEFAULT_CONFIG_PATH
 from app.widgets.image_viewer import ImageViewer
 
 DEFAULT_SCORE_THRESHOLD = 0.3  # 실제 파이프라인 스크립트의 SCORE_THRESHOLD와 동일
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp"}
 
 
 class InferenceTestTab(QWidget):
@@ -27,13 +33,43 @@ class InferenceTestTab(QWidget):
         self._checkpoint_path: str | None = None
         self._config_path: str | None = None
         self._image_path: str | None = None
+        self._image_paths: list[str] = []  # 현재 폴더의 이미지 전체 경로 (image_list와 index 일치)
         self._last_detections: list[Detection] = []
         self._build_ui()
+        self._prefill_latest_checkpoint()
 
     def _build_ui(self) -> None:
         root = QHBoxLayout(self)
 
+        # ------------------------------------------------------- 좌측: 폴더 + 이미지 목록
         left = QVBoxLayout()
+        left_widget = QWidget()
+        left_widget.setLayout(left)
+        left_widget.setFixedWidth(220)
+
+        left.addWidget(QLabel("이미지 폴더"))
+        folder_row = QHBoxLayout()
+        self.folder_edit = QLineEdit()
+        self.folder_edit.setPlaceholderText("폴더를 선택하세요")
+        self.folder_edit.setReadOnly(True)
+        folder_row.addWidget(self.folder_edit, stretch=1)
+        btn_browse_folder = QPushButton("폴더 선택")
+        btn_browse_folder.clicked.connect(self._on_browse_image_folder)
+        folder_row.addWidget(btn_browse_folder)
+        left.addLayout(folder_row)
+
+        self.image_count_label = QLabel("이미지 목록 (0장)")
+        self.image_count_label.setStyleSheet("color: #666; font-size: 11px; margin-top: 6px;")
+        left.addWidget(self.image_count_label)
+
+        self.image_list = QListWidget()
+        self.image_list.currentRowChanged.connect(self._on_image_row_changed)
+        left.addWidget(self.image_list, stretch=1)
+
+        root.addWidget(left_widget)
+
+        # ------------------------------------------------------- 중앙: 설정 + 미리보기
+        center = QVBoxLayout()
 
         path_row = QHBoxLayout()
         path_row.addWidget(QLabel("체크포인트"))
@@ -42,7 +78,7 @@ class InferenceTestTab(QWidget):
         btn_browse_ckpt = QPushButton("선택")
         btn_browse_ckpt.clicked.connect(self._on_browse_checkpoint)
         path_row.addWidget(btn_browse_ckpt)
-        left.addLayout(path_row)
+        center.addLayout(path_row)
 
         cfg_row = QHBoxLayout()
         cfg_row.addWidget(QLabel("config"))
@@ -52,21 +88,20 @@ class InferenceTestTab(QWidget):
         btn_browse_cfg = QPushButton("선택")
         btn_browse_cfg.clicked.connect(self._on_browse_config)
         cfg_row.addWidget(btn_browse_cfg)
-        left.addLayout(cfg_row)
+        center.addLayout(cfg_row)
 
-        top_row = QHBoxLayout()
-        self.btn_load_image = QPushButton("이미지 불러오기")
-        self.btn_load_image.clicked.connect(self._on_load_image)
+        run_row = QHBoxLayout()
         self.btn_run = QPushButton("추론 실행")
         self.btn_run.clicked.connect(self._on_run_inference)
-        top_row.addWidget(self.btn_load_image)
-        top_row.addWidget(self.btn_run)
-        left.addLayout(top_row)
+        run_row.addWidget(self.btn_run)
+        run_row.addStretch(1)
+        center.addLayout(run_row)
 
         self.image_viewer = ImageViewer()
-        left.addWidget(self.image_viewer, stretch=1)
-        root.addLayout(left, stretch=2)
+        center.addWidget(self.image_viewer, stretch=1)
+        root.addLayout(center, stretch=2)
 
+        # ------------------------------------------------------- 우측: 검출 결과
         right = QVBoxLayout()
         right.addWidget(QLabel("검출 결과"))
         self.result_list = QListWidget()
@@ -89,6 +124,23 @@ class InferenceTestTab(QWidget):
 
         root.addLayout(right, stretch=1)
 
+    def _prefill_latest_checkpoint(self) -> None:
+        """탭이 열릴 때, 기본 config의 work_dir에서 가장 최근 best 체크포인트를 자동으로 채운다."""
+        if not DEFAULT_CONFIG_PATH.is_file():
+            return
+        cfg_path = str(DEFAULT_CONFIG_PATH)
+        self.config_edit.setText(cfg_path)
+
+        best = find_latest_best_checkpoint(cfg_path)
+        if best:
+            self.checkpoint_edit.setText(best)
+            self.log_message.emit(f"최신 best 체크포인트 자동 설정: {best}")
+        else:
+            self.log_message.emit(
+                "work_dir에 best 체크포인트가 아직 없어 자동 설정을 건너뜁니다. "
+                "직접 선택해주세요."
+            )
+
     # ----------------------------------------------------------- actions
     def _on_browse_checkpoint(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "체크포인트 선택", "", "PyTorch (*.pth)")
@@ -109,20 +161,51 @@ class InferenceTestTab(QWidget):
         if path:
             self.config_edit.setText(path)
 
-    def _on_load_image(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, "이미지 선택", "", "Images (*.png *.jpg *.jpeg *.bmp)"
-        )
-        if not path:
+    def _on_browse_image_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "이미지 폴더 선택")
+        if not folder:
             return
-        self._image_path = path
-        self.image_viewer.load_image(path)
+        self.folder_edit.setText(folder)
+        self._load_image_folder(folder)
+
+    def _load_image_folder(self, folder: str) -> None:
+        folder_path = Path(folder)
+        files = sorted(
+            f for f in folder_path.iterdir()
+            if f.is_file() and f.suffix.lower() in IMAGE_EXTS
+        )
+
+        self._image_paths = [str(f) for f in files]
+        self.image_list.clear()
+        for f in files:
+            self.image_list.addItem(QListWidgetItem(f.name))
+        self.image_count_label.setText(f"이미지 목록 ({len(files)}장)")
+
+        self._image_path = None
+        self._last_detections = []
         self.result_list.clear()
-        self.log_message.emit(f"이미지 로드: {path}")
+        self.image_viewer.load_image("")  # 미리보기 초기화
+
+        if not files:
+            QMessageBox.information(self, "알림", "선택한 폴더에 이미지가 없습니다.")
+            self.log_message.emit(f"이미지 폴더 스캔: {folder} (0장)")
+            return
+
+        self.log_message.emit(f"이미지 폴더 스캔: {folder} ({len(files)}장)")
+        self.image_list.setCurrentRow(0)  # 첫 이미지를 자동으로 미리보기
+
+    def _on_image_row_changed(self, row: int) -> None:
+        if row < 0 or row >= len(self._image_paths):
+            return
+        self._image_path = self._image_paths[row]
+        self.image_viewer.load_image(self._image_path)
+        self._last_detections = []
+        self.result_list.clear()
+        self.log_message.emit(f"이미지 선택: {self._image_path}")
 
     def _on_run_inference(self) -> None:
         if not self._image_path:
-            QMessageBox.warning(self, "알림", "먼저 이미지를 불러오세요.")
+            QMessageBox.warning(self, "알림", "먼저 이미지 폴더를 선택하고 목록에서 이미지를 고르세요.")
             return
         checkpoint = self.checkpoint_edit.text().strip()
         config = self.config_edit.text().strip()

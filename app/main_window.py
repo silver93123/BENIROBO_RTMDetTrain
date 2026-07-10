@@ -16,7 +16,7 @@ from app.widgets.log_console import LogConsole
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("3D Vision Bin-Picking Toolkit (오프라인 모드)")
+        self.setWindowTitle("3D Vision Bin-Picking Toolkit")
         self.resize(1200, 780)
         self._build_ui()
 
@@ -72,12 +72,6 @@ class MainWindow(QMainWindow):
         title.setStyleSheet("font-weight: 600;")
         layout.addWidget(title)
         layout.addStretch(1)
-
-        mode_label = QLabel("오프라인 모드")
-        mode_label.setStyleSheet(
-            "background-color: #faeeda; color: #633806; padding: 2px 10px; border-radius: 6px;"
-        )
-        layout.addWidget(mode_label)
         return bar
 
     def _on_nav_changed(self, row: int) -> None:
