@@ -24,6 +24,10 @@ DEFAULT_DATASET_ROOT = PROJECT_ROOT / "data" / "dataset"
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "rtmdet-ins_bracket.py"
 DEFAULT_SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 
+# 데이터 수집(탭 0) 관련 — 전부 이 프로젝트 안에서 해결한다 (외부 프로젝트 의존 없음).
+DEFAULT_COLLECT_SCRIPT = DEFAULT_SCRIPTS_DIR / "collect_dataset.py"
+DEFAULT_CAMERA_CONFIG_PATH = PROJECT_ROOT / "configs" / "camera_config.yaml"
+
 
 def resolve_relative_to_project(path_str: str) -> Path:
     """path_str이 상대경로면 PROJECT_ROOT 기준으로, 절대경로면 그대로 반환."""

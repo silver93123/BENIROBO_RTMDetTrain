@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
+from app.tabs.data_collection_tab import DataCollectionTab
 from app.tabs.data_session_tab import DataSessionTab
 from app.tabs.training_tab import TrainingTab
 from app.tabs.inference_test_tab import InferenceTestTab
@@ -34,6 +35,7 @@ class MainWindow(QMainWindow):
 
         self.nav_list = QListWidget()
         self.nav_list.setFixedWidth(180)
+        self.nav_list.addItem(QListWidgetItem("0. 데이터 수집"))
         self.nav_list.addItem(QListWidgetItem("1. 데이터 세션"))
         self.nav_list.addItem(QListWidgetItem("2. 모델 학습"))
         self.nav_list.addItem(QListWidgetItem("3. 오프라인 검출 테스트"))
@@ -41,9 +43,11 @@ class MainWindow(QMainWindow):
         body.addWidget(self.nav_list)
 
         self.stack = QStackedWidget()
+        self.collection_tab = DataCollectionTab()
         self.data_tab = DataSessionTab()
         self.training_tab = TrainingTab()
         self.inference_tab = InferenceTestTab()
+        self.stack.addWidget(self.collection_tab)
         self.stack.addWidget(self.data_tab)
         self.stack.addWidget(self.training_tab)
         self.stack.addWidget(self.inference_tab)
@@ -53,9 +57,13 @@ class MainWindow(QMainWindow):
         outer.addWidget(self.log_console)
 
         # 로그 시그널 연결
+        self.collection_tab.log_message.connect(self.log_console.append_log)
         self.data_tab.log_message.connect(self.log_console.append_log)
         self.training_tab.log_message.connect(self.log_console.append_log)
         self.inference_tab.log_message.connect(self.log_console.append_log)
+
+        # 데이터 수집 탭에서 수집이 끝나면 -> 학습 탭에 --dataset 값으로 바로 연동
+        self.collection_tab.dataset_captured.connect(self.training_tab.set_session_path)
 
         # 데이터 세션 탭에서 세션 선택 -> 학습 탭에 참고용으로 전달
         self.data_tab.session_selected.connect(self.training_tab.set_session_path)

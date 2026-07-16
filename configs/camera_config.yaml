@@ -1,0 +1,10 @@
+camera:
+  type: lucid_helios
+  serial: null
+  pixel_format: Coord3D_ABCY16
+  exposure_time_selector: Exp250Us
+  operating_mode: Distance1500mm
+  connect_timeout_ms: 5000
+  capture_timeout_ms: 2000
+  warmup_frames: 3
+  valid_z_range_mm: [300.0, 900.0]
