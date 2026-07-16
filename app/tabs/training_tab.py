@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -103,6 +104,13 @@ class TrainingTab(QWidget):
         btn_open_editor = QPushButton("에디터로 열기")
         btn_open_editor.clicked.connect(self._on_open_config_editor)
         cfg_row.addWidget(btn_open_editor)
+        btn_generate_cfg = QPushButton("COCO에서 config 자동 생성")
+        btn_generate_cfg.setToolTip(
+            "위 --dataset 폴더의 annotations/instances_Train.json에서 "
+            "클래스 이름/개수를 읽어 새 config를 자동으로 만듭니다."
+        )
+        btn_generate_cfg.clicked.connect(self._on_generate_config)
+        cfg_row.addWidget(btn_generate_cfg)
         layout.addLayout(cfg_row)
 
         ckpt_row = QHBoxLayout()
@@ -166,6 +174,63 @@ class TrainingTab(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, "체크포인트 선택", "", "PyTorch (*.pth)")
         if path:
             self.checkpoint_edit.setText(path)
+
+    def _on_generate_config(self) -> None:
+        dataset = self.dataset_edit.text().strip()
+        if not dataset:
+            QMessageBox.warning(
+                self, "설정 확인 필요",
+                "먼저 위 --dataset 칸에 폴더명을 입력하세요 "
+                "(그 폴더의 annotations/instances_Train.json을 읽습니다).",
+            )
+            return
+
+        script_path = PROJECT_ROOT / "scripts" / "make_training_config.py"
+        if not script_path.is_file():
+            QMessageBox.warning(
+                self, "스크립트 없음",
+                f"{script_path} 를 찾을 수 없습니다.\n"
+                "scripts/make_training_config.py 위치에 스크립트를 넣어주세요.",
+            )
+            return
+
+        self.log_message.emit(f"config 자동 생성 실행 중... (dataset={dataset})")
+        try:
+            result = subprocess.run(
+                ["python", str(script_path), "--dataset", dataset],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True, text=True, timeout=30,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "실행 실패", f"스크립트 실행 중 오류:\n{exc}")
+            return
+
+        output = (result.stdout or "") + (result.stderr or "")
+        for line in output.splitlines():
+            self.train_log.append_log(line)
+
+        if result.returncode != 0:
+            QMessageBox.critical(
+                self, "config 생성 실패",
+                "자동 생성에 실패했습니다. 아래 로그 콘솔에서 원인을 확인하세요.",
+            )
+            return
+
+        generated_path = None
+        for line in output.splitlines():
+            if "생성됨:" in line:
+                generated_path = line.split("생성됨:", 1)[1].strip()
+                break
+
+        if generated_path and os.path.isfile(generated_path):
+            self.config_edit.setText(generated_path)
+            self.log_message.emit(f"COCO 어노테이션에서 config 자동 생성 완료: {generated_path}")
+        else:
+            QMessageBox.information(
+                self, "생성 완료",
+                "config가 생성된 것 같지만 경로를 자동으로 못 찾았습니다. "
+                "로그 콘솔에서 경로를 확인하고 '선택' 버튼으로 직접 지정하세요.",
+            )
 
     def _on_check_start_point(self) -> None:
         cfg_path = self.config_edit.text().strip()

@@ -36,12 +36,18 @@ class FrameData:
             (H, W) bool. 유효한 깊이값을 가진 픽셀 마스크.
         confidence:
             (H, W) uint16 또는 None. ToF 측정 신뢰도 (지원 시).
+        color_rgb:
+            (H, W, 3) uint8 또는 None. depth 격자에 정렬된 RGB 이미지
+            (지원하는 카메라에서, 옵션으로 켰을 때만). 기본 파이프라인
+            (intensity/points_organized)과는 독립적인 부가 정보이므로
+            None이어도 나머지 필드는 항상 정상 사용 가능해야 한다.
     """
     intensity: np.ndarray
     points: np.ndarray
     points_organized: np.ndarray
     valid_mask: np.ndarray
     confidence: Optional[np.ndarray] = None
+    color_rgb: Optional[np.ndarray] = None
 
     def __post_init__(self) -> None:
         # 형상 일관성 검증 - 디버깅 시 빠른 실패를 위해
@@ -59,6 +65,11 @@ class FrameData:
         if self.points.ndim != 2 or self.points.shape[1] != 3:
             raise ValueError(
                 f"points 형상 불일치: (N,3) 기대, 실제={self.points.shape}"
+            )
+        if self.color_rgb is not None and self.color_rgb.shape != (h, w, 3):
+            raise ValueError(
+                f"color_rgb 형상 불일치: ({h},{w},3) 기대, "
+                f"실제={self.color_rgb.shape}"
             )
 
     @property

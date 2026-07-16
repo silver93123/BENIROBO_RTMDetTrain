@@ -100,6 +100,12 @@ camera:
   capture_timeout_ms: 2000
   warmup_frames: 5
 
+  # true로 하면 depth 격자에 정렬된 RGB도 추가로 캡처한다 (실험적 옵션).
+  # IR/depth 기반 기본 파이프라인과는 분리되어 있어, 이 옵션이 실패해도
+  # IR/depth 캡처 자체는 영향받지 않는다. "0. 데이터 수집" 탭에서
+  # "RGB PNG (Femto Bolt 전용)" 체크박스도 같이 켜야 실제로 저장된다.
+  capture_rgb: false
+
   valid_z_range_mm: [100.0, 1500.0]
 """
 
@@ -213,9 +219,15 @@ class DataCollectionTab(QWidget):
         self.chk_mask.setChecked(True)
         self.chk_metadata = QCheckBox("Metadata (json)")
         self.chk_metadata.setChecked(True)
+        self.chk_rgb = QCheckBox("RGB PNG (Femto Bolt 전용)")
+        self.chk_rgb.setChecked(False)
+        self.chk_rgb.setToolTip(
+            "config의 camera.capture_rgb: true 일 때만 실제로 저장됩니다 "
+            "(꺼져 있으면 이 체크와 무관하게 저장 안 되고 경고만 뜸)."
+        )
         for chk in (
             self.chk_intensity, self.chk_pointcloud, self.chk_organized,
-            self.chk_mask, self.chk_metadata,
+            self.chk_mask, self.chk_metadata, self.chk_rgb,
         ):
             formats_row.addWidget(chk)
         formats_row.addStretch(1)
@@ -369,6 +381,8 @@ class DataCollectionTab(QWidget):
             selected_formats.append("mask")
         if self.chk_metadata.isChecked():
             selected_formats.append("metadata")
+        if self.chk_rgb.isChecked():
+            selected_formats.append("rgb")
         if not selected_formats:
             QMessageBox.warning(
                 self, "설정 확인 필요", "저장할 파일 종류를 최소 하나는 선택하세요.",

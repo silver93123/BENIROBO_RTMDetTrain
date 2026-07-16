@@ -50,6 +50,7 @@ def create_camera(config: dict) -> CameraBase:
             capture_timeout_ms=config.get("capture_timeout_ms", 2000),
             valid_z_range_mm=tuple(config.get("valid_z_range_mm", (100.0, 1500.0))),
             warmup_frames=config.get("warmup_frames", 5),
+            capture_rgb=config.get("capture_rgb", False),
         )
 
     raise ValueError(

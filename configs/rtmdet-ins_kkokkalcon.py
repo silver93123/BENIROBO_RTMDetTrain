@@ -34,7 +34,7 @@ _base_ = '/home/silver/miniconda3/envs/vision_env/lib/python3.10/site-packages/m
 # RTMDet-Ins의 헤드는 클래스 개수에 의존. 1 클래스로 교체.
 model = dict(
     bbox_head=dict(
-        num_classes=1,  # bracket 한 개
+        num_classes=2,  # bracket 한 개
     ),
     # 학습 시작 시 COCO pretrained 가중치 로드
     # (test_cfg는 base와 동일하게 유지)
@@ -47,12 +47,13 @@ model = dict(
 # 주의: 2_Train_rtmdet_model.py로 실행하면 --dataset 값으로 이 값이 런타임에
 # override되므로, 이 config를 직접 mmdet 학습 명령으로 돌릴 때만 실제로 쓰인다.
 # 프로젝트 루트 기준 상대경로 (스크립트가 os.chdir(ROOT)로 이동한 뒤 실행되므로 안전)
-data_root = 'data/dataset/20260520_193909/'
+data_root = 'data/dataset/20260716_170711_kkokkalcon/'
 
 # 클래스 이름과 색상 (시각화용)
 metainfo = dict(
-    classes=('bracket',),
-    palette=[(220, 20, 60)],  # 빨강
+    classes=('kkokkalcon','homrunball'),
+    palette=[(220, 20, 60),(0, 20, 60)],  # 빨강
+    
 )
 
 # 학습 데이터셋
@@ -141,7 +142,7 @@ param_scheduler = [
 # -----------------------------------------------------------------------------
 # 4. 출력 디렉토리 (프로젝트 루트 기준 상대경로 - os.chdir(ROOT) 이후 실행되므로 안전)
 # -----------------------------------------------------------------------------
-work_dir = 'work_dirs/rtmdet-ins_bracket_v1'
+work_dir = 'work_dirs/rtmdet-kkokkalcon_v1'
 
 
 # -----------------------------------------------------------------------------
@@ -167,7 +168,7 @@ default_hooks = dict(
 # COCO pretrained .pth 파일을 <프로젝트 루트>/models/ 에 받아두세요.
 # load_from을 지정하면 mmdet이 자동으로 호환되는 레이어만 로드하고
 # 클래스 수가 바뀐 head의 마지막 레이어는 새로 초기화함
-load_from = '/home/silver/binpicking_vision/BENIROBO_RTMDetTrain/models_v0/rtmdet-ins_tiny_8xb32-300e_coco.pth'
+load_from = 'models/rtmdet-ins_tiny_8xb32-300e_coco_20221130_151727-ec670f7e.pth'
 
 
 # -----------------------------------------------------------------------------

@@ -71,7 +71,7 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-VALID_FORMAT_KEYS = {"intensity", "pointcloud", "organized", "mask", "metadata"}
+VALID_FORMAT_KEYS = {"intensity", "pointcloud", "organized", "mask", "metadata", "rgb"}
 
 
 def describe_camera_cfg(cfg_camera: dict) -> str:
@@ -113,6 +113,7 @@ def setup_output_dirs(out_dir: Path, formats: set) -> dict:
         "organized": out_dir / "pointcloud_organized",
         "mask": out_dir / "valid_mask",
         "metadata": out_dir / "metadata",
+        "rgb": out_dir / "color_rgb",
     }
     subdirs = {k: v for k, v in all_subdirs.items() if k in formats}
     for p in subdirs.values():
@@ -178,6 +179,22 @@ def save_frame(frame, dirs: dict, idx: int, cfg_camera: dict, formats: set) -> d
                 print(f"  [WARN] PLY 쓰기 실패", flush=True)
         except ImportError:
             pass  # Open3D 없으면 npy만으로 OK
+
+    # 5. RGB PNG (옵션, Femto Bolt에서 capture_rgb: true일 때만 존재)
+    if "rgb" in formats:
+        color_rgb = getattr(frame, "color_rgb", None)
+        if color_rgb is not None:
+            path = dirs["rgb"] / f"{name}.png"
+            # cv2.imwrite는 BGR을 기대하므로 변환 (프레임은 RGB 순서로 들어옴)
+            bgr = cv2.cvtColor(color_rgb, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(str(path), bgr)
+            saved_files["rgb"] = f"color_rgb/{name}.png"
+        else:
+            print(
+                "  [WARN] RGB 저장이 요청됐지만 이 프레임엔 RGB 데이터가 없습니다 "
+                "(config의 camera.capture_rgb: true 설정을 확인하세요).",
+                flush=True,
+            )
 
     # 통계는 저장 여부와 무관하게 항상 계산 (진행 상황 표시용)
     valid_count = int(frame.valid_mask.sum())

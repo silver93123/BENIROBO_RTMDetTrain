@@ -38,6 +38,7 @@ import logging
 import time
 from typing import Optional
 
+import cv2
 import numpy as np
 
 from .base import CameraBase, FrameData
@@ -46,10 +47,12 @@ logger = logging.getLogger(__name__)
 
 try:
     from pyorbbecsdk import (  # type: ignore
+        AlignFilter,
         Config,
         OBError,
         OBFormat,
         OBSensorType,
+        OBStreamType,
         Pipeline,
         PointCloudFilter,
     )
@@ -79,6 +82,10 @@ class FemtoBoltCamera(CameraBase):
         capture_timeout_ms: 한 프레임셋 대기 타임아웃 (밀리초).
         valid_z_range_mm: 이 범위 밖 Z는 무효 처리.
         warmup_frames: 스트림 시작 직후 버릴 프레임 수 (초기 프레임 불안정 대비).
+        capture_rgb: True면 depth 격자에 정렬된 RGB도 추가로 캡처한다 (실험적,
+            기본값 False). IR/depth 기반 검증된 파이프라인과는 완전히 분리되어
+            있어서, 이 옵션이 실패해도(스트림 미지원, AlignFilter 실패 등)
+            capture()는 color_rgb=None으로 정상 반환하며 크래시하지 않는다.
     """
 
     def __init__(
@@ -90,6 +97,7 @@ class FemtoBoltCamera(CameraBase):
         capture_timeout_ms: int = 2000,
         valid_z_range_mm: tuple = (100.0, 1500.0),
         warmup_frames: int = 5,
+        capture_rgb: bool = False,
     ) -> None:
         if not _ORBBEC_AVAILABLE:
             raise ImportError(
@@ -108,9 +116,11 @@ class FemtoBoltCamera(CameraBase):
         self._valid_z_min = float(valid_z_range_mm[0])
         self._valid_z_max = float(valid_z_range_mm[1])
         self.warmup_frames = int(warmup_frames)
+        self.capture_rgb = bool(capture_rgb)
 
         self._pipeline: Optional["Pipeline"] = None
         self._pc_filter: Optional["PointCloudFilter"] = None
+        self._align_filter: Optional["AlignFilter"] = None
 
     # ------------------------------------------------------------------ open
     def open(self) -> None:
@@ -155,6 +165,36 @@ class FemtoBoltCamera(CameraBase):
         )
         config.enable_stream(ir_profile)
 
+        # ---- RGB (옵션, 실험적) ----
+        # IR/depth 기반 검증된 파이프라인과 완전히 분리: 여기서 뭐가 실패해도
+        # capture_rgb를 False로 되돌리고 경고만 남긴 뒤 계속 진행한다.
+        if self.capture_rgb:
+            try:
+                color_profiles = self._pipeline.get_stream_profile_list(
+                    OBSensorType.COLOR_SENSOR
+                )
+                color_profile = None
+                for cp in color_profiles:
+                    if cp.get_format() == OBFormat.RGB:
+                        color_profile = cp
+                        break
+                if color_profile is None:
+                    color_profile = color_profiles.get_default_video_stream_profile()
+                    logger.warning(
+                        "RGB 포맷 컬러 프로파일을 찾지 못해 기본 프로파일(포맷=%s)을 "
+                        "씁니다. AlignFilter가 실패하면 색상 포맷을 확인하세요.",
+                        color_profile.get_format(),
+                    )
+                config.enable_stream(color_profile)
+                # color를 depth 격자에 맞춰 정렬 (organized PCD/IR과 같은 격자 유지)
+                self._align_filter = AlignFilter(align_to_stream=OBStreamType.DEPTH_STREAM)
+            except Exception as e:
+                logger.warning(
+                    "RGB 스트림 설정 실패 - RGB 없이 IR/depth만으로 진행합니다: %s", e
+                )
+                self.capture_rgb = False
+                self._align_filter = None
+
         self._pipeline.start(config)
 
         self._pc_filter = PointCloudFilter()
@@ -187,6 +227,7 @@ class FemtoBoltCamera(CameraBase):
             logger.warning("pipeline.stop 실패: %s", e)
         self._pipeline = None
         self._pc_filter = None
+        self._align_filter = None
 
     # --------------------------------------------------------------- capture
     def capture(self) -> FrameData:
@@ -246,13 +287,42 @@ class FemtoBoltCamera(CameraBase):
         points_organized[~valid_mask] = np.nan
         points = points_organized[valid_mask]
 
+        color_rgb = None
+        if self.capture_rgb and self._align_filter is not None:
+            color_rgb = self._try_extract_aligned_rgb(frames, h, w)
+
         return FrameData(
             intensity=intensity,
             points=points,
             points_organized=points_organized,
             valid_mask=valid_mask,
             confidence=None,
+            color_rgb=color_rgb,
         )
+
+    def _try_extract_aligned_rgb(self, frames, h: int, w: int) -> Optional[np.ndarray]:
+        """depth 격자에 정렬된 RGB를 뽑아본다. 실패해도 None만 반환하고 절대
+        예외를 위로 던지지 않는다 (IR/depth 기반 캡처 성공에 영향 주지 않기 위함)."""
+        try:
+            aligned = self._align_filter.process(frames)
+            if aligned is None:
+                logger.warning("AlignFilter.process()가 None을 반환했습니다.")
+                return None
+            aligned_fs = aligned.as_frame_set()
+            color_frame = aligned_fs.get_color_frame()
+            if color_frame is None:
+                logger.warning("정렬된 프레임셋에서 color를 가져오지 못했습니다.")
+                return None
+
+            c_h, c_w = color_frame.get_height(), color_frame.get_width()
+            raw_rgb = np.frombuffer(color_frame.get_data(), dtype=np.uint8)
+            raw_rgb = raw_rgb[: c_h * c_w * 3].reshape(c_h, c_w, 3).copy()
+            if (c_h, c_w) != (h, w):
+                raw_rgb = cv2.resize(raw_rgb, (w, h), interpolation=cv2.INTER_LINEAR)
+            return raw_rgb
+        except Exception as e:
+            logger.warning("RGB 정렬/추출 실패 (IR/depth 결과에는 영향 없음): %s", e)
+            return None
 
     @staticmethod
     def _normalize_intensity(intensity_u16: np.ndarray) -> np.ndarray:
