@@ -1,0 +1,241 @@
+[07/16 16:49:43.750756][info][131793][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[07/16 16:49:43.750777][info][131793][DeviceManager.cpp:25] Current found device(s): (1)
+[07/16 16:49:43.750779][info][131793][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[07/16 16:49:43.750781][info][131793][DeviceManager.cpp:405] Enable net device enumeration: true
+[07/16 16:49:44.757109][info][131793][DeviceManager.cpp:25] Current device(s) list: (1)
+[07/16 16:49:44.757123][info][131793][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[07/16 16:49:45.101606][info][131793][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[07/16 16:49:45.101621][info][131793][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x64A767008580
+[07/16 16:49:45.102179][info][131793][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[07/16 16:49:51.116319][info][131842][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 0, metadataHeader.width: 0, metadataHeader.height: 0
+[07/16 16:49:51.124896][warning][131842][ObException.cpp:32] A unrecoverable_exception has occurred!
+ - where: Frame.cpp(85)
+ - msg: Update data size(1245148) > data buffer size! (1048576)
+ - type: MEMORY
+ - status: 104
+[07/16 16:49:51.133303][warning][131842][ObLibuvcDevicePort.cpp:469] Execute failure! A libobsensor_exception has occurred!
+ - where: ObLibuvcDevicePort.cpp(469):onFrameCallback
+ - msg: Update data size(1245148) > data buffer size! (1048576)
+ - type: N11libobsensor23unrecoverable_exceptionE
+ - status: 104
+[07/16 16:49:51.133729][info][131842][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[07/16 16:49:51.576753][info][131793][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[07/16 16:49:51.576766][info][131793][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[07/16 16:49:51.576772][info][131793][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:49:51.576779][info][131793][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[07/16 16:49:51.576781][info][131793][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:49:51.667442][info][131793][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:49:51.667445][info][131793][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[07/16 16:49:51.667446][info][131793][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:49:51.667448][info][131793][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[07/16 16:49:51.667448][info][131793][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[07/16 16:49:53.667597][warning][131793][Pipeline.cpp:335] [CL8L56301JF] Wait for frame timeout, you can try to increase the wait time! current timeout=2000
+[07/16 16:49:57.667970][warning][131793][Pipeline.cpp:335] [CL8L56301JF] Wait for frame timeout, you can try to increase the wait time! current timeout=2000 [**2 logs in 4000ms**]
+[07/16 16:49:57.692112][error][131851][RawPhaseStreamer.cpp:267] Frame data size error: rawFrameSize: 3101372904, frameDataSize: 1948512, nRows: 28546
+[07/16 16:49:57.721372][info][131851][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[07/16 16:49:57.721558][info][131851][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[07/16 16:49:57.750906][warning][131851][ObException.cpp:26] A recoverable_exception has occurred!
+ - where: TimestampAnomalyDetector.cpp(63)
+ - msg: Timestamp anomaly detected, timestamp: 1213600311675, cacheTimestamp: 1213594866392 ,currentDiff: 5445283, maxValidTimestampDiff: 5000000
+ - type: UNKNOWN
+ - status: 101
+[07/16 16:49:57.750998][warning][131851][SensorBase.cpp:432] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: SensorBase.cpp(432):outputFrame
+ - msg: Timestamp anomaly detected, timestamp: 1213600311675, cacheTimestamp: 1213594866392 ,currentDiff: 5445283, maxValidTimestampDiff: 5000000
+ - type: N11libobsensor21recoverable_exceptionE
+ - status: 101
+[07/16 16:49:57.751004][error][131851][SensorBase.cpp:432] [CL8L56301JF] Timestamp anomaly detected, frame: 1213600311675, sensor: Depth
+[07/16 16:49:57.751242][warning][131851][ObException.cpp:26] A recoverable_exception has occurred!
+ - where: TimestampAnomalyDetector.cpp(63)
+ - msg: Timestamp anomaly detected, timestamp: 1213600311675, cacheTimestamp: 1213594866392 ,currentDiff: 5445283, maxValidTimestampDiff: 5000000
+ - type: UNKNOWN
+ - status: 101
+[07/16 16:49:57.751252][warning][131851][SensorBase.cpp:432] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: SensorBase.cpp(432):outputFrame
+ - msg: Timestamp anomaly detected, timestamp: 1213600311675, cacheTimestamp: 1213594866392 ,currentDiff: 5445283, maxValidTimestampDiff: 5000000
+ - type: N11libobsensor21recoverable_exceptionE
+ - status: 101
+[07/16 16:49:57.751256][error][131851][SensorBase.cpp:432] [CL8L56301JF] Timestamp anomaly detected, frame: 1213600311675, sensor: IR
+[07/16 16:49:57.856646][info][131793][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[07/16 16:49:57.856652][info][131793][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[07/16 16:49:57.856662][info][131793][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[07/16 16:49:57.856666][info][131793][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[07/16 16:49:57.856691][info][131793][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[07/16 16:49:57.856693][info][131793][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[07/16 16:49:58.594743][info][131793][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[07/16 16:49:58.594869][info][131793][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[07/16 16:49:58.594870][info][131793][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[07/16 16:49:58.594880][info][131793][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[07/16 16:49:58.594900][info][131793][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x64A767008580
+[07/16 16:49:58.602122][info][131793][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[07/16 16:49:58.602124][info][131793][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[07/16 16:49:58.602137][info][131793][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[07/16 16:49:58.602142][info][131793][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[07/16 16:49:58.609639][info][131793][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[07/16 16:49:58.609640][info][131793][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[07/16 16:50:05.571987][info][131876][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[07/16 16:50:05.572008][info][131876][DeviceManager.cpp:25] Current found device(s): (1)
+[07/16 16:50:05.572009][info][131876][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[07/16 16:50:05.572011][info][131876][DeviceManager.cpp:405] Enable net device enumeration: true
+[07/16 16:50:06.577264][info][131876][DeviceManager.cpp:25] Current device(s) list: (1)
+[07/16 16:50:06.577280][info][131876][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[07/16 16:50:06.921617][info][131876][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[07/16 16:50:06.921633][info][131876][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x5B31EE06D680
+[07/16 16:50:06.922227][info][131876][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[07/16 16:50:12.943656][info][131923][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 0, metadataHeader.width: 0, metadataHeader.height: 0
+[07/16 16:50:12.944472][info][131923][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 0, metadataHeader.width: 0, metadataHeader.height: 0
+[07/16 16:50:12.946152][info][131923][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[07/16 16:50:13.394908][info][131876][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[07/16 16:50:13.394922][info][131876][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[07/16 16:50:13.394926][info][131876][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:50:13.394930][info][131876][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[07/16 16:50:13.394932][info][131876][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:50:13.473568][info][131876][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:50:13.473578][info][131876][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[07/16 16:50:13.473581][info][131876][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:50:13.473583][info][131876][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[07/16 16:50:13.473584][info][131876][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[07/16 16:50:15.474035][warning][131876][Pipeline.cpp:335] [CL8L56301JF] Wait for frame timeout, you can try to increase the wait time! current timeout=2000
+[07/16 16:50:19.474640][warning][131876][Pipeline.cpp:335] [CL8L56301JF] Wait for frame timeout, you can try to increase the wait time! current timeout=2000 [**2 logs in 4000ms**]
+[07/16 16:50:19.553315][error][131936][RawPhaseStreamer.cpp:267] Frame data size error: rawFrameSize: 1159480392, frameDataSize: 1162224, nRows: 44953
+[07/16 16:50:19.580669][info][131936][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[07/16 16:50:19.580857][info][131936][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[07/16 16:50:19.611852][warning][131936][ObException.cpp:26] A recoverable_exception has occurred!
+ - where: TimestampAnomalyDetector.cpp(63)
+ - msg: Timestamp anomaly detected, timestamp: 1213622118477, cacheTimestamp: 1213616673051 ,currentDiff: 5445426, maxValidTimestampDiff: 5000000
+ - type: UNKNOWN
+ - status: 101
+[07/16 16:50:19.611949][warning][131936][SensorBase.cpp:432] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: SensorBase.cpp(432):outputFrame
+ - msg: Timestamp anomaly detected, timestamp: 1213622118477, cacheTimestamp: 1213616673051 ,currentDiff: 5445426, maxValidTimestampDiff: 5000000
+ - type: N11libobsensor21recoverable_exceptionE
+ - status: 101
+[07/16 16:50:19.611956][error][131936][SensorBase.cpp:432] [CL8L56301JF] Timestamp anomaly detected, frame: 1213622118477, sensor: Depth
+[07/16 16:50:19.612194][warning][131936][ObException.cpp:26] A recoverable_exception has occurred!
+ - where: TimestampAnomalyDetector.cpp(63)
+ - msg: Timestamp anomaly detected, timestamp: 1213622118477, cacheTimestamp: 1213616673051 ,currentDiff: 5445426, maxValidTimestampDiff: 5000000
+ - type: UNKNOWN
+ - status: 101
+[07/16 16:50:19.612206][warning][131936][SensorBase.cpp:432] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: SensorBase.cpp(432):outputFrame
+ - msg: Timestamp anomaly detected, timestamp: 1213622118477, cacheTimestamp: 1213616673051 ,currentDiff: 5445426, maxValidTimestampDiff: 5000000
+ - type: N11libobsensor21recoverable_exceptionE
+ - status: 101
+[07/16 16:50:19.612210][error][131936][SensorBase.cpp:432] [CL8L56301JF] Timestamp anomaly detected, frame: 1213622118477, sensor: IR
+[07/16 16:50:19.717935][info][131876][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[07/16 16:50:19.717941][info][131876][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[07/16 16:50:19.717953][info][131876][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[07/16 16:50:19.717957][info][131876][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[07/16 16:50:19.717994][info][131876][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[07/16 16:50:19.717997][info][131876][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[07/16 16:50:20.484535][info][131876][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[07/16 16:50:20.484672][info][131876][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[07/16 16:50:20.484676][info][131876][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[07/16 16:50:20.484686][info][131876][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[07/16 16:50:20.484708][info][131876][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x5B31EE06D680
+[07/16 16:50:20.492152][info][131876][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[07/16 16:50:20.492154][info][131876][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[07/16 16:50:20.492169][info][131876][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[07/16 16:50:20.492174][info][131876][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[07/16 16:50:20.499688][info][131876][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[07/16 16:50:20.499690][info][131876][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[07/16 16:51:40.876693][info][132231][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[07/16 16:51:40.876714][info][132231][DeviceManager.cpp:25] Current found device(s): (1)
+[07/16 16:51:40.876716][info][132231][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[07/16 16:51:40.876718][info][132231][DeviceManager.cpp:405] Enable net device enumeration: true
+[07/16 16:51:41.881494][info][132231][DeviceManager.cpp:25] Current device(s) list: (1)
+[07/16 16:51:41.881507][info][132231][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[07/16 16:51:42.225299][info][132231][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[07/16 16:51:42.225320][info][132231][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x565DBF7C4A20
+[07/16 16:51:42.225900][info][132231][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[07/16 16:51:48.240316][info][132279][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 0, metadataHeader.width: 0, metadataHeader.height: 0
+[07/16 16:51:48.246835][error][132279][RawPhaseStreamer.cpp:504] Frame data size error: 393336
+[07/16 16:51:48.248681][error][132279][RawPhaseStreamer.cpp:504] Frame data size error: 852004
+[07/16 16:51:48.250698][info][132279][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[07/16 16:51:48.698637][info][132231][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[07/16 16:51:48.698646][info][132231][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[07/16 16:51:48.698650][info][132231][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:51:48.698654][info][132231][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[07/16 16:51:48.698656][info][132231][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:51:48.777315][info][132231][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:51:48.777324][info][132231][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[07/16 16:51:48.777327][info][132231][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[07/16 16:51:48.777329][info][132231][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[07/16 16:51:48.777330][info][132231][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[07/16 16:51:50.777802][warning][132231][Pipeline.cpp:335] [CL8L56301JF] Wait for frame timeout, you can try to increase the wait time! current timeout=2000
+[07/16 16:51:54.778420][warning][132231][Pipeline.cpp:335] [CL8L56301JF] Wait for frame timeout, you can try to increase the wait time! current timeout=2000 [**2 logs in 4000ms**]
+[07/16 16:51:54.793580][error][132289][RawPhaseStreamer.cpp:267] Frame data size error: rawFrameSize: 2453456772, frameDataSize: 375936, nRows: 10798
+[07/16 16:51:54.823529][info][132289][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[07/16 16:51:54.823741][info][132289][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[07/16 16:51:54.853818][warning][132289][ObException.cpp:26] A recoverable_exception has occurred!
+ - where: TimestampAnomalyDetector.cpp(63)
+ - msg: Timestamp anomaly detected, timestamp: 1213717422586, cacheTimestamp: 1213711977020 ,currentDiff: 5445566, maxValidTimestampDiff: 5000000
+ - type: UNKNOWN
+ - status: 101
+[07/16 16:51:54.853882][warning][132289][SensorBase.cpp:432] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: SensorBase.cpp(432):outputFrame
+ - msg: Timestamp anomaly detected, timestamp: 1213717422586, cacheTimestamp: 1213711977020 ,currentDiff: 5445566, maxValidTimestampDiff: 5000000
+ - type: N11libobsensor21recoverable_exceptionE
+ - status: 101
+[07/16 16:51:54.853885][error][132289][SensorBase.cpp:432] [CL8L56301JF] Timestamp anomaly detected, frame: 1213717422586, sensor: Depth
+[07/16 16:51:54.854022][warning][132289][ObException.cpp:26] A recoverable_exception has occurred!
+ - where: TimestampAnomalyDetector.cpp(63)
+ - msg: Timestamp anomaly detected, timestamp: 1213717422586, cacheTimestamp: 1213711977020 ,currentDiff: 5445566, maxValidTimestampDiff: 5000000
+ - type: UNKNOWN
+ - status: 101
+[07/16 16:51:54.854030][warning][132289][SensorBase.cpp:432] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: SensorBase.cpp(432):outputFrame
+ - msg: Timestamp anomaly detected, timestamp: 1213717422586, cacheTimestamp: 1213711977020 ,currentDiff: 5445566, maxValidTimestampDiff: 5000000
+ - type: N11libobsensor21recoverable_exceptionE
+ - status: 101
+[07/16 16:51:54.854033][error][132289][SensorBase.cpp:432] [CL8L56301JF] Timestamp anomaly detected, frame: 1213717422586, sensor: IR
+[07/16 16:51:55.709054][warning][132300][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[07/16 16:51:58.763760][warning][132300][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**46 logs in 3054ms**]
+[07/16 16:51:59.826102][info][132289][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=15.793683fps
+[07/16 16:51:59.826162][info][132289][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=15.793683fps
+[07/16 16:51:59.826194][info][132299][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=15.593763fps
+[07/16 16:51:59.826238][info][132300][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=15.593763fps
+[07/16 16:52:04.806723][warning][132300][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**88 logs in 6042ms**]
+[07/16 16:52:04.873059][info][132289][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=15.058451fps
+[07/16 16:52:04.873097][info][132289][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=15.058451fps
+[07/16 16:52:04.873143][info][132299][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=15.058451fps
+[07/16 16:52:04.873246][info][132300][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=15.058451fps
+[07/16 16:52:09.919929][info][132289][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=15.058451fps
+[07/16 16:52:09.919972][info][132289][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=15.058451fps
+[07/16 16:52:09.919974][info][132299][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=15.058451fps
+[07/16 16:52:09.919997][info][132300][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=15.058451fps
+[07/16 16:52:14.967213][info][132289][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=15.058451fps
+[07/16 16:52:14.967267][info][132289][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=15.058451fps
+[07/16 16:52:14.967307][info][132299][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=15.058451fps
+[07/16 16:52:14.967325][info][132300][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=15.058451fps
+[07/16 16:52:16.825802][warning][132300][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**180 logs in 12019ms**]
+[07/16 16:52:20.014316][info][132289][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=15.058451fps
+[07/16 16:52:20.014367][info][132289][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=15.058451fps
+[07/16 16:52:20.014387][info][132299][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=15.055468fps
+[07/16 16:52:20.014415][info][132300][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=15.055468fps
+[07/16 16:52:25.061987][info][132289][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=15.055468fps
+[07/16 16:52:25.062039][info][132289][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=15.055468fps
+[07/16 16:52:25.062079][info][132299][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=15.058451fps
+[07/16 16:52:25.062093][info][132300][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=15.058451fps
+[07/16 16:52:30.108595][info][132289][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=15.058451fps
+[07/16 16:52:30.108660][info][132289][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=15.058451fps
+[07/16 16:52:30.108679][info][132299][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=15.058451fps
+[07/16 16:52:30.108714][info][132300][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=15.058451fps
+[07/16 16:52:31.967465][info][132231][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[07/16 16:52:31.967481][info][132231][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[07/16 16:52:31.967506][info][132231][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[07/16 16:52:31.967511][info][132231][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[07/16 16:52:31.967577][info][132231][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[07/16 16:52:31.967580][info][132231][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[07/16 16:52:32.534446][info][132231][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[07/16 16:52:32.534515][info][132231][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[07/16 16:52:32.534517][info][132231][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[07/16 16:52:32.534528][info][132231][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[07/16 16:52:32.534557][info][132231][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x565DBF7C4A20
+[07/16 16:52:32.541941][info][132231][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[07/16 16:52:32.541943][info][132231][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[07/16 16:52:32.541957][info][132231][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[07/16 16:52:32.541961][info][132231][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[07/16 16:52:32.549473][info][132231][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[07/16 16:52:32.549475][info][132231][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[07/16 16:52:33.053502][warning][132389][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**227 logs in 16227ms, last: 16:52:31.902421**]

@@ -41,12 +41,12 @@ from app.widgets.log_console import LogConsole
 # src/camera/lucid_helios.py가 그대로 받아쓰는 스키마 (LUCID Helios2 ToF 기준).
 DEFAULT_HELIOS_CONFIG_TEMPLATE = """\
 # =============================================================================
-# Bin Picking Vision 설정 (collect_dataset.py / src.camera 공용)
+# Bin Picking Vision 설정 (collect_dataset.py / src.camera 공용) - LUCID Helios2
 # =============================================================================
 # 모든 길이 단위: mm
 
 camera:
-  # 카메라 타입. (lucid_helios | 추후 추가)
+  # 카메라 타입. (lucid_helios | femto_bolt)
   type: lucid_helios
 
   # 시리얼 번호. null이면 첫 번째로 발견되는 카메라를 사용한다.
@@ -70,6 +70,37 @@ camera:
   warmup_frames: 3
 
   valid_z_range_mm: [300.0, 900.0]
+"""
+
+# src/camera/femto_bolt.py가 그대로 받아쓰는 스키마 (Orbbec Femto Bolt 기준, 검증된 드라이버).
+DEFAULT_FEMTO_CONFIG_TEMPLATE = """\
+# =============================================================================
+# Bin Picking Vision 설정 (collect_dataset.py / src.camera 공용) - Femto Bolt
+# =============================================================================
+# 모든 길이 단위: mm
+# Helios2용 config와 스키마가 다르니 섞어쓰지 않도록 주의.
+# intensity는 IR 스트림(깊이 센서와 픽셀 정렬됨), XYZ는 PointCloudFilter로 변환.
+
+camera:
+  # 카메라 타입.
+  type: femto_bolt
+
+  # 시리얼 번호. null이면 첫 번째로 발견되는 카메라를 사용한다.
+  serial: null
+
+  # ---- Femto Bolt 전용 옵션 ----
+  # depth/IR 스트림 해상도 (반드시 서로 같아야 픽셀 정렬 유지됨).
+  #   640x576 (NFOV Unbinned — 약 0.5~3.86 m)
+  #   512x512 (WFOV Binned   — 약 0.25~2.5 m, 근거리 유리)
+  depth_width: 640
+  depth_height: 576
+  fps: 15
+
+  # 카메라 캡처 타임아웃 (ms), 워밍업 프레임 수 (초기 프레임 불안정 대비)
+  capture_timeout_ms: 2000
+  warmup_frames: 5
+
+  valid_z_range_mm: [100.0, 1500.0]
 """
 
 
@@ -113,18 +144,24 @@ class DataCollectionTab(QWidget):
         btn_browse_config = QPushButton("찾아보기")
         btn_browse_config.clicked.connect(self._on_browse_config)
         config_row.addWidget(btn_browse_config)
-        btn_new_config = QPushButton("기본 config 생성")
+        btn_new_config = QPushButton("Helios2 기본 config 생성")
         btn_new_config.setToolTip(
             "LUCID Helios2 기준 기본 config.yaml을 configs/ 폴더에 새로 만듭니다."
         )
         btn_new_config.clicked.connect(self._on_create_default_config)
         config_row.addWidget(btn_new_config)
+        btn_new_femto_config = QPushButton("Femto Bolt 기본 config 생성")
+        btn_new_femto_config.setToolTip(
+            "Orbbec Femto Bolt 기준 기본 config.yaml을 configs/ 폴더에 새로 만듭니다."
+        )
+        btn_new_femto_config.clicked.connect(self._on_create_default_femto_config)
+        config_row.addWidget(btn_new_femto_config)
         layout.addLayout(config_row)
 
         config_hint = QLabel(
-            "camera.type: lucid_helios 로 시작하는 원본 스키마여야 합니다 "
-            "(exposure_time_selector / operating_mode 키를 collect_dataset.py가 직접 읽음). "
-            "파일이 없으면 '기본 config 생성'으로 먼저 만드세요."
+            "camera.type: lucid_helios (또는 femto_bolt)로 시작하는 원본 스키마여야 합니다 "
+            "(collect_dataset.py가 카메라 타입에 맞는 키를 직접 읽음). "
+            "파일이 없으면 위 버튼으로 먼저 만드세요."
         )
         config_hint.setStyleSheet("color: #888; font-size: 11px;")
         config_hint.setWordWrap(True)
@@ -265,7 +302,7 @@ class DataCollectionTab(QWidget):
 
     def _on_create_default_config(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
-            self, "기본 config 저장 위치", str(DEFAULT_CAMERA_CONFIG_PATH),
+            self, "기본 config 저장 위치 (LUCID Helios2)", str(DEFAULT_CAMERA_CONFIG_PATH),
             "YAML (*.yaml *.yml)",
         )
         if not path:
@@ -279,6 +316,24 @@ class DataCollectionTab(QWidget):
             return
         self.config_edit.setText(path)
         self.log_message.emit(f"기본 config 생성: {path} (LUCID Helios2 기준, 필요시 값 수정)")
+
+    def _on_create_default_femto_config(self) -> None:
+        default_path = str(PROJECT_ROOT / "configs" / "camera_config_femto.yaml")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "기본 config 저장 위치 (Femto Bolt)", default_path,
+            "YAML (*.yaml *.yml)",
+        )
+        if not path:
+            return
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(DEFAULT_FEMTO_CONFIG_TEMPLATE)
+        except OSError as exc:
+            QMessageBox.critical(self, "생성 실패", f"config 파일을 쓰지 못했습니다:\n{exc}")
+            return
+        self.config_edit.setText(path)
+        self.log_message.emit(f"기본 config 생성: {path} (Femto Bolt 기준, 필요시 값 수정)")
 
     # ----------------------------------------------------------- actions
     def _on_start(self) -> None:

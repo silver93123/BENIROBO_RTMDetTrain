@@ -1,39 +1,58 @@
-"""카메라 팩토리. cfg["camera"]["type"]에 따라 알맞은 백엔드를 생성한다.
+"""Camera abstraction layer.
 
-collect_dataset.py를 포함한 이 프로젝트 전체가 여기서만 카메라를 임포트한다.
-다른 프로젝트에 의존하지 않고, 이 저장소 안(src/camera)에서 전부 해결한다.
-
-사용 예:
+사용 예시:
     from src.camera import create_camera
-    with create_camera(cfg["camera"]) as cam:
+    
+    cfg = {"type": "lucid_helios", "serial": None, ...}
+    with create_camera(cfg) as cam:
         frame = cam.capture()
+        print(frame.points.shape, frame.intensity.shape)
 """
-from __future__ import annotations
 
 from .base import CameraBase, FrameData
 
-_BACKENDS = {
-    "lucid_helios": "src.camera.lucid_helios:LucidHeliosCamera",
-    # 추후 다른 카메라 추가 시 여기에 등록.
-    # "femto_bolt": "src.camera.femto_bolt:FemtoBoltCamera",
-}
+__all__ = ["CameraBase", "FrameData", "create_camera"]
 
 
-def create_camera(cfg: dict) -> CameraBase:
-    """cfg (config.yaml의 camera: 섹션)를 받아 알맞은 카메라 인스턴스를 만든다."""
-    cam_type = cfg.get("type")
-    if cam_type not in _BACKENDS:
-        supported = ", ".join(sorted(_BACKENDS)) or "(없음)"
-        raise ValueError(
-            f"지원하지 않는 카메라 type='{cam_type}'. 지원 목록: {supported}"
-        )
+def create_camera(config: dict) -> CameraBase:
+    """설정 dict로부터 카메라 인스턴스 생성 (factory).
+
+    Args:
+        config: config.yaml의 'camera' 섹션 dict.
+
+    Returns:
+        CameraBase 하위 클래스 인스턴스.
+
+    Raises:
+        ValueError: 지원하지 않는 카메라 타입.
+    """
+    cam_type = config.get("type", "").lower()
 
     if cam_type == "lucid_helios":
         from .lucid_helios import LucidHeliosCamera
+        return LucidHeliosCamera(
+            serial=config.get("serial"),
+            pixel_format=config.get("pixel_format", "Coord3D_ABCY16"),
+            exposure_time_selector=config.get("exposure_time_selector", "Exp1000Us"),
+            operating_mode=config.get("operating_mode", "Distance3000mm"),
+            connect_timeout_ms=config.get("connect_timeout_ms", 5000),
+            capture_timeout_ms=config.get("capture_timeout_ms", 2000),
+            valid_z_range_mm=tuple(config.get("valid_z_range_mm", (100.0, 1500.0))),
+        )
 
-        return LucidHeliosCamera(cfg)
+    if cam_type == "femto_bolt":
+        from .femto_bolt import FemtoBoltCamera
+        return FemtoBoltCamera(
+            serial=config.get("serial"),
+            depth_width=config.get("depth_width", 640),
+            depth_height=config.get("depth_height", 576),
+            fps=config.get("fps", 15),
+            capture_timeout_ms=config.get("capture_timeout_ms", 2000),
+            valid_z_range_mm=tuple(config.get("valid_z_range_mm", (100.0, 1500.0))),
+            warmup_frames=config.get("warmup_frames", 5),
+        )
 
-    raise AssertionError("unreachable")  # _BACKENDS와 분기가 어긋난 경우 방지용
-
-
-__all__ = ["create_camera", "CameraBase", "FrameData"]
+    raise ValueError(
+        f"지원하지 않는 카메라 타입: '{cam_type}'. "
+        f"지원: ['lucid_helios', 'femto_bolt']"
+    )

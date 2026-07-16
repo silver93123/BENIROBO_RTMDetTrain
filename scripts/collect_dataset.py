@@ -74,6 +74,26 @@ def parse_args() -> argparse.Namespace:
 VALID_FORMAT_KEYS = {"intensity", "pointcloud", "organized", "mask", "metadata"}
 
 
+def describe_camera_cfg(cfg_camera: dict) -> str:
+    """카메라 타입에 맞는 요약 문자열을 만든다. (콘솔 출력 및 로그 파싱용)
+
+    capture_runner.py의 정규식은 이 줄을 파싱하지 않으므로 자유롭게 확장 가능.
+    """
+    cam_type = cfg_camera.get("type", "unknown")
+    if cam_type == "lucid_helios":
+        return (
+            f"lucid_helios | exposure={cfg_camera.get('exposure_time_selector')}, "
+            f"mode={cfg_camera.get('operating_mode')}"
+        )
+    if cam_type == "femto_bolt":
+        return (
+            f"femto_bolt | "
+            f"{cfg_camera.get('depth_width')}x{cfg_camera.get('depth_height')}"
+            f"@{cfg_camera.get('fps')}fps"
+        )
+    return f"{cam_type} | {cfg_camera}"
+
+
 def parse_formats(formats_str: str) -> set:
     formats = {f.strip() for f in formats_str.split(",") if f.strip()}
     unknown = formats - VALID_FORMAT_KEYS
@@ -98,6 +118,26 @@ def setup_output_dirs(out_dir: Path, formats: set) -> dict:
     for p in subdirs.values():
         p.mkdir(parents=True, exist_ok=True)
     return subdirs
+
+
+def describe_camera_cfg_dict(cfg_camera: dict) -> dict:
+    """metadata/frame_NNNN.json에 넣을 카메라 정보. 타입별로 관련 키만 담는다."""
+    cam_type = cfg_camera.get("type")
+    if cam_type == "lucid_helios":
+        return {
+            "type": cam_type,
+            "pixel_format": cfg_camera.get("pixel_format"),
+            "exposure_time_selector": cfg_camera.get("exposure_time_selector"),
+            "operating_mode": cfg_camera.get("operating_mode"),
+        }
+    if cam_type == "femto_bolt":
+        return {
+            "type": cam_type,
+            "depth_width": cfg_camera.get("depth_width"),
+            "depth_height": cfg_camera.get("depth_height"),
+            "fps": cfg_camera.get("fps"),
+        }
+    return {"type": cam_type}
 
 
 def save_frame(frame, dirs: dict, idx: int, cfg_camera: dict, formats: set) -> dict:
@@ -166,12 +206,7 @@ def save_frame(frame, dirs: dict, idx: int, cfg_camera: dict, formats: set) -> d
             "z_median_mm": round(z_med, 1) if not np.isnan(z_med) else None,
             "num_points": int(len(pts)),
         },
-        "camera_config": {
-            "type": cfg_camera.get("type"),
-            "pixel_format": cfg_camera.get("pixel_format"),
-            "exposure_time_selector": cfg_camera.get("exposure_time_selector"),
-            "operating_mode": cfg_camera.get("operating_mode"),
-        },
+        "camera_config": describe_camera_cfg_dict(cfg_camera),
         "files": saved_files,
     }
 
@@ -211,8 +246,7 @@ def main() -> int:
     print(f"  Output:    {args.out}", flush=True)
     print(f"  Frames:    {args.start_index} ~ {args.start_index + args.num - 1}", flush=True)
     print(f"  Formats:   {', '.join(sorted(formats))}", flush=True)
-    print(f"  Camera:    exposure={cfg['camera']['exposure_time_selector']}, "
-          f"mode={cfg['camera']['operating_mode']}", flush=True)
+    print(f"  Camera:    {describe_camera_cfg(cfg['camera'])}", flush=True)
     print("=" * 70, flush=True)
     print("", flush=True)
     print("  부품 배치를 매 프레임마다 바꿔주세요.", flush=True)
