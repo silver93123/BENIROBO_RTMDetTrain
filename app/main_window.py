@@ -11,6 +11,7 @@ from app.tabs.data_collection_tab import DataCollectionTab
 from app.tabs.data_session_tab import DataSessionTab
 from app.tabs.training_tab import TrainingTab
 from app.tabs.inference_test_tab import InferenceTestTab
+from app.tabs.icp_test_tab import ICPTestTab
 from app.widgets.log_console import LogConsole
 
 
@@ -39,6 +40,7 @@ class MainWindow(QMainWindow):
         self.nav_list.addItem(QListWidgetItem("1. 데이터 세션"))
         self.nav_list.addItem(QListWidgetItem("2. 모델 학습"))
         self.nav_list.addItem(QListWidgetItem("3. 오프라인 검출 테스트"))
+        self.nav_list.addItem(QListWidgetItem("4. ICP 정합 테스트"))
         self.nav_list.currentRowChanged.connect(self._on_nav_changed)
         body.addWidget(self.nav_list)
 
@@ -47,10 +49,12 @@ class MainWindow(QMainWindow):
         self.data_tab = DataSessionTab()
         self.training_tab = TrainingTab()
         self.inference_tab = InferenceTestTab()
+        self.icp_tab = ICPTestTab()
         self.stack.addWidget(self.collection_tab)
         self.stack.addWidget(self.data_tab)
         self.stack.addWidget(self.training_tab)
         self.stack.addWidget(self.inference_tab)
+        self.stack.addWidget(self.icp_tab)
         body.addWidget(self.stack, stretch=1)
 
         self.log_console = LogConsole()
@@ -61,12 +65,15 @@ class MainWindow(QMainWindow):
         self.data_tab.log_message.connect(self.log_console.append_log)
         self.training_tab.log_message.connect(self.log_console.append_log)
         self.inference_tab.log_message.connect(self.log_console.append_log)
+        self.icp_tab.log_message.connect(self.log_console.append_log)
 
         # 데이터 수집 탭에서 수집이 끝나면 -> 학습 탭에 --dataset 값으로 바로 연동
         self.collection_tab.dataset_captured.connect(self.training_tab.set_session_path)
+        self.collection_tab.dataset_captured.connect(self.icp_tab.set_session_path)
 
-        # 데이터 세션 탭에서 세션 선택 -> 학습 탭에 참고용으로 전달
+        # 데이터 세션 탭에서 세션 선택 -> 학습 탭 / ICP 탭에 참고용으로 전달
         self.data_tab.session_selected.connect(self.training_tab.set_session_path)
+        self.data_tab.session_selected.connect(self.icp_tab.set_session_path)
 
         self.nav_list.setCurrentRow(0)
 

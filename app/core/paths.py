@@ -24,6 +24,9 @@ DEFAULT_DATASET_ROOT = PROJECT_ROOT / "data" / "dataset"
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "rtmdet-ins_bracket.py"
 DEFAULT_SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 
+# ICP 정합 테스트(탭 4) 관련
+DEFAULT_CAD_DIR = PROJECT_ROOT / "data" / "cad"
+
 # 데이터 수집(탭 0) 관련 — 전부 이 프로젝트 안에서 해결한다 (외부 프로젝트 의존 없음).
 DEFAULT_COLLECT_SCRIPT = DEFAULT_SCRIPTS_DIR / "collect_dataset.py"
 DEFAULT_CAMERA_CONFIG_PATH = PROJECT_ROOT / "configs" / "camera_config.yaml"
