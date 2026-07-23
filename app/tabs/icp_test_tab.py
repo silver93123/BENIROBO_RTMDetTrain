@@ -46,10 +46,12 @@ class ICPTestTab(QWidget):
         self._last_detections: list[Detection] = []
         self._last_icp_results: list[ICPResult] = []
         self._cad_pcd = None
-        self._cad_down = None
+        self._cad_visible_normal = None
+        self._cad_visible_flipped = None
         self._cad_path_loaded: str | None = None
-        self._cad_voxel_loaded: float | None = None
         self._cad_axis_loaded: tuple[float, float, float] | None = None
+        self._cad_init_rot_loaded: tuple[float, float, float] | None = None
+        self._cad_ref_dist_loaded: float | None = None
         self._viewer_process: QProcess | None = None
         self._build_ui()
         self._prefill_latest_checkpoint()
@@ -203,8 +205,13 @@ class ICPTestTab(QWidget):
             grid.addWidget(spin, row, col * 2 + 1)
             return spin
 
-        self.spin_voxel_scene = add_double(0, 0, "voxel(scene) m", defaults.voxel_size_scene, 0.0005, 0.05, 0.0005, 4)
-        self.spin_voxel_cad = add_double(0, 1, "voxel(CAD) m", defaults.voxel_size_cad, 0.0005, 0.05, 0.0005, 4)
+        self.spin_mask_erode = add_int(0, 0, "마스크 침식 px", defaults.mask_erode_px, 0, 10)
+        self.spin_cad_ref_dist = add_double(0, 1, "카메라~부품 거리(m)", defaults.cad_hpr_ref_distance_m, 0.05, 5.0, 0.01, 3)
+        erode_hint = QLabel("마스크 침식: depth 경계 노이즈 완충용 (0=끔).\n"
+                             "카메라~부품 거리: CAD 가시면(보이는 면만 정합) 계산 기준값.")
+        erode_hint.setStyleSheet("color: #888; font-size: 10px;")
+        erode_hint.setWordWrap(True)
+        grid.addWidget(erode_hint, 10, 0, 1, 4)
 
         self.spin_outlier_n = add_int(1, 0, "outlier n", defaults.outlier_nb_neighbors, 1, 200)
         self.spin_outlier_std = add_double(1, 1, "outlier σ", defaults.outlier_std_ratio, 0.1, 10.0, 0.1, 2)
@@ -235,8 +242,8 @@ class ICPTestTab(QWidget):
         return box
 
     def _reset_icp_params(self, defaults: ICPParams) -> None:
-        self.spin_voxel_scene.setValue(defaults.voxel_size_scene)
-        self.spin_voxel_cad.setValue(defaults.voxel_size_cad)
+        self.spin_mask_erode.setValue(defaults.mask_erode_px)
+        self.spin_cad_ref_dist.setValue(defaults.cad_hpr_ref_distance_m)
         self.spin_outlier_n.setValue(defaults.outlier_nb_neighbors)
         self.spin_outlier_std.setValue(defaults.outlier_std_ratio)
         self.spin_fitness.setValue(defaults.fitness_threshold)
@@ -254,8 +261,8 @@ class ICPTestTab(QWidget):
     def _build_icp_params(self) -> ICPParams:
         """스핀박스 현재 값들로 ICPParams를 만든다 (icp_stages 다단계 리스트는 기본값 유지)."""
         return ICPParams(
-            voxel_size_cad=self.spin_voxel_cad.value(),
-            voxel_size_scene=self.spin_voxel_scene.value(),
+            mask_erode_px=self.spin_mask_erode.value(),
+            cad_hpr_ref_distance_m=self.spin_cad_ref_dist.value(),
             outlier_nb_neighbors=self.spin_outlier_n.value(),
             outlier_std_ratio=self.spin_outlier_std.value(),
             fitness_threshold=self.spin_fitness.value(),
@@ -443,9 +450,11 @@ class ICPTestTab(QWidget):
         )
         results: list[ICPResult] = []
         for i, det in enumerate(self._last_detections):
-            pts_mm = icp_runner.extract_instance_points_mm(det.mask, self._pcd_organized, self._valid_mask)
+            pts_mm = icp_runner.extract_instance_points_mm(
+                det.mask, self._pcd_organized, self._valid_mask, erode_px=params.mask_erode_px
+            )
             result = icp_runner.run_icp_for_instance(
-                i, pts_mm, self._cad_pcd, self._cad_down, params=params
+                i, pts_mm, self._cad_pcd, self._cad_visible_normal, self._cad_visible_flipped, params=params
             )
             results.append(result)
             if result.ok:
@@ -455,6 +464,14 @@ class ICPTestTab(QWidget):
                 )
             else:
                 self.log_message.emit(f"[ICP 탭]  obj{i} ✗ {result.error}")
+                if result.stage_logs:
+                    for sl in result.stage_logs:
+                        voxel_str = f"{sl['voxel']}" if sl["voxel"] is not None else "원본밀도"
+                        self.log_message.emit(
+                            f"[ICP 탭]     stage{sl['stage']}({sl['method']}, voxel={voxel_str}): "
+                            f"src={sl['n_src']}pt tgt={sl['n_tgt']}pt "
+                            f"fitness={sl['fitness']:.3f} rmse={sl['rmse']*1000:.2f}mm"
+                        )
 
         self._last_icp_results = results
         self._render_result_panel(results)
@@ -472,14 +489,33 @@ class ICPTestTab(QWidget):
             self._cad_pcd = icp_runner.load_cad_as_pcd(cad_path, params)
             self._cad_path_loaded = cad_path
             self._cad_axis_loaded = axis
-            self._cad_down = None  # voxel/축보정이 바뀌었을 수 있으니 강제로 다시 계산
+            self._cad_visible_normal = None  # 축보정이 바뀌었으니 가시면도 강제로 다시 계산
 
-        if self._cad_down is None or self._cad_voxel_loaded != params.voxel_size_cad:
-            self._cad_down = icp_runner.downsample_cad(self._cad_pcd, params)
-            self._cad_voxel_loaded = params.voxel_size_cad
+        init_rot = params.init_rotation_deg
+        ref_dist = params.cad_hpr_ref_distance_m
+        if (self._cad_visible_normal is None
+                or self._cad_init_rot_loaded != init_rot
+                or self._cad_ref_dist_loaded != ref_dist):
+            visible_normal, visible_flipped = icp_runner.build_visible_cad_pair(
+                self._cad_pcd, params
+            )
+            total = len(self._cad_pcd.points)
+            vis = len(visible_normal.points)
+            MIN_VISIBLE_RATIO = 0.05  # 전체의 5% 미만이면 가시면 계산이 잘못된 것으로 보고 폴백
+            if total == 0 or vis / total < MIN_VISIBLE_RATIO:
+                self.log_message.emit(
+                    f"[ICP 탭] ⚠ CAD 가시면이 비정상적으로 적음({vis}/{total}점) - "
+                    f"'카메라~부품 거리(m)' 값을 확인하세요. 일단 CAD 전체로 폴백합니다."
+                )
+                visible_normal = self._cad_pcd
+                visible_flipped = self._cad_pcd
+            self._cad_visible_normal = visible_normal
+            self._cad_visible_flipped = visible_flipped
+            self._cad_init_rot_loaded = init_rot
+            self._cad_ref_dist_loaded = ref_dist
             self.log_message.emit(
-                f"[ICP 탭] CAD 준비 완료: {len(self._cad_pcd.points)}점 "
-                f"(다운샘플 {len(self._cad_down.points)}점, voxel={params.voxel_size_cad})"
+                f"[ICP 탭] CAD 가시면 준비 완료: 전체 {total}점 -> 가시 {vis}점 "
+                f"({100*vis/total:.1f}%, 기준거리={ref_dist:.2f}m)"
             )
 
     # -------------------------------------------------------------- 결과 패널

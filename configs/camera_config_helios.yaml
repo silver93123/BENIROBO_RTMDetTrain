@@ -1,0 +1,30 @@
+# =============================================================================
+# Bin Picking Vision 설정 (collect_dataset.py / src.camera 공용) - LUCID Helios2
+# =============================================================================
+# 모든 길이 단위: mm
+
+camera:
+  # 카메라 타입. (lucid_helios | femto_bolt)
+  type: lucid_helios
+
+  # 시리얼 번호. null이면 첫 번째로 발견되는 카메라를 사용한다.
+  serial: null
+
+  # ---- LUCID Helios 전용 옵션 ----
+  # Coord3D_ABCY16: X, Y, Z + Intensity (각 16-bit). 빈 피킹 표준 포맷.
+  pixel_format: Coord3D_ABCY16
+
+  # 노출 시간. 어두우면 길게, 모션블러가 우려되면 짧게.
+  # 옵션: Exp62_5Us / Exp250Us / Exp1000Us
+  exposure_time_selector: Exp250Us
+
+  # 동작 거리 모드. 작업 영역에 맞춰 가장 짧은 것을 선택해야 정밀도가 올라간다.
+  # 옵션 예: Distance1500mm / Distance3000mm / Distance4000mm / Distance5000mm / Distance6000mm
+  operating_mode: Distance1500mm
+
+  # 카메라 발견/캡처 타임아웃 (ms)
+  connect_timeout_ms: 5000
+  capture_timeout_ms: 2000
+  warmup_frames: 3
+
+  valid_z_range_mm: [300.0, 900.0]

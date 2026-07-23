@@ -167,7 +167,7 @@ default_hooks = dict(
 # COCO pretrained .pth 파일을 <프로젝트 루트>/models/ 에 받아두세요.
 # load_from을 지정하면 mmdet이 자동으로 호환되는 레이어만 로드하고
 # 클래스 수가 바뀐 head의 마지막 레이어는 새로 초기화함
-load_from = '/home/silver/binpicking_vision/BENIROBO_RTMDetTrain/models_v0/rtmdet-ins_tiny_8xb32-300e_coco.pth'
+load_from = '/home/silver/binpicking_vision/BENIROBO_RTMDetTrain/work_dirs/rtmdet-ins_bracket_v1/fine_best_coco_bbox_mAP_epoch_50.pth'
 
 
 # -----------------------------------------------------------------------------
