@@ -41,6 +41,18 @@ FINE_RTMDet_EXE/scripts/bp_icp.py 를 이식했다. 원본과의 차이:
         downsample_cad()는 더 이상 쓰이지 않아 제거했다. voxel 크기는 이제
         icp_stages 리스트의 각 stage 딕셔너리 안 "voxel" 키로 지정한다.
 --------------------------------------------------------------------------
+2026-07 패치 2: ICP 알고리즘 교체 가능 구조로 리팩터링
+  - 실제 point-to-point/point-to-plane 정합 로직은
+    app/core/registration/open3d_multistage.py의 Open3DMultiStageICP로
+    이식했다. 이 파일에서는 run_icp_multistage()를 얇은 호환 래퍼로만
+    남겨서(내부에서 create_registrator()로 estimator를 만들어 위임),
+    기존 호출부(run_icp_for_instance, correct_flipped_pose)와 반환
+    시그니처((T, fitness, rmse, stage_logs) 튜플)를 그대로 유지했다.
+  - 알고리즘을 바꾸고 싶으면 app.core.registration.create_registrator()로
+    다른 PoseEstimator를 만들어서 run_icp_for_instance(..., estimator=...)
+    에 넘기면 된다 (estimator 인자를 생략하면 기존과 동일하게
+    open3d_multistage 기본값을 쓴다 - 하위 호환).
+--------------------------------------------------------------------------
 """
 from __future__ import annotations
 
@@ -50,6 +62,8 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 import open3d as o3d
+
+from app.core.registration import PoseEstimator, create_registrator
 
 # =============================================================================
 # CAD 로드 전용 상수
@@ -67,8 +81,17 @@ class ICPParams:
     outlier_nb_neighbors: int = 20
     outlier_std_ratio: float = 1.5
 
+    # 2026-07 패치2: 어떤 PoseEstimator를 쓸지 고르는 필드.
+    # run_icp_for_instance()에 estimator를 직접 넘기지 않으면 이 값으로
+    # app.core.registration.create_registrator()를 통해 자동 생성한다.
+    # 지원 값은 app/core/registration/__init__.py 참고 (기본: 기존과 동일).
+    registration_type: str = "open3d_multistage"
+
     # [5] coarse -> fine 다단계. voxel=None인 stage는 outlier 제거 후
     # "원본 밀도" 그대로 정합한다 (마지막 stage는 항상 None 권장).
+    # 주의: 이 필드는 registration_type="open3d_multistage"일 때만 쓰인다 -
+    # 다른 알고리즘으로 바꾸면 무시되고, 해당 알고리즘 고유 파라미터는
+    # 각 PoseEstimator 구현체(예: Open3DMultiStageParams)가 따로 갖는다.
     icp_stages: list[dict] = field(default_factory=lambda: [
         {"voxel": 0.006, "max_dist": 0.020, "max_iter": 100},
         {"voxel": 0.003, "max_dist": 0.010, "max_iter": 100},
@@ -270,63 +293,53 @@ def check_rotation_constraint(T: np.ndarray, params: ICPParams) -> tuple[bool, s
 
 
 # =============================================================================
-# [2]+[5] Point-to-Plane multi-resolution ICP
+# 정합 알고리즘 위임 (2026-07 패치2)
 # =============================================================================
-def _prep_stage_cloud(base_pcd: o3d.geometry.PointCloud, voxel: float | None,
-                       normal_radius: float) -> o3d.geometry.PointCloud:
-    cloud = base_pcd.voxel_down_sample(voxel) if voxel is not None else copy.deepcopy(base_pcd)
-    cloud.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=normal_radius, max_nn=30))
-    cloud.orient_normals_towards_camera_location([0.0, 0.0, 0.0])
-    return cloud
+def _build_default_estimator(params: ICPParams) -> PoseEstimator:
+    """params.registration_type으로 estimator를 만든다.
+    open3d_multistage인 경우 params에 들어있는 icp_stages 등 기존 필드를
+    그대로 Open3DMultiStageICP 생성자 인자로 넘겨서, 이전과 동일한 기본값
+    (혹은 UI에서 바뀐 값)이 그대로 적용되게 한다."""
+    cfg = {"type": params.registration_type}
+    if params.registration_type == "open3d_multistage":
+        cfg["params"] = {
+            "icp_stages": params.icp_stages,
+            "normal_radius_factor": params.normal_radius_factor,
+            "normal_radius_final": params.normal_radius_final,
+        }
+    return create_registrator(cfg)
 
 
-def run_icp_multistage(cad_source, scene_source, T_init: np.ndarray, params: ICPParams):
-    """[2]+[5] coarse-to-fine ICP.
-    cad_source/scene_source는 voxel 다운샘플 전(outlier 제거 후) 원본 밀도로 넘긴다 -
-    각 stage에서 params.icp_stages[i]["voxel"] 기준으로 알아서 리샘플한다.
+def run_icp_multistage(cad_source, scene_source, T_init: np.ndarray, params: ICPParams,
+                        estimator: PoseEstimator | None = None):
+    """[2]+[5] coarse-to-fine ICP - 이제는 얇은 호환 래퍼.
 
-    추정 방식: voxel이 있는(coarse/mid) stage는 point-to-point를 쓴다 - 초기
-    정렬이 많이 틀어져 있을 수 있는 초반 단계에서 point-to-plane은 선형화
-    근사 때문에 발산하기 쉽다. voxel=None인 마지막(fine) stage에서만
-    point-to-plane으로 정밀화한다 (이미 대략 맞춰진 상태라 안전함).
+    실제 정합 로직은 app/core/registration/open3d_multistage.py의
+    Open3DMultiStageICP(PoseEstimator)로 옮겨졌다. 이 함수는:
+      1) estimator가 주어지지 않으면 params.registration_type 기준으로
+         기본 estimator를 만들고,
+      2) estimator.estimate()를 호출한 뒤,
+      3) 기존 반환 시그니처 (T, fitness, rmse, stage_logs) 튜플로 풀어서
+         돌려준다 - 호출부(run_icp_for_instance, correct_flipped_pose,
+         혹은 다른 곳에서 직접 이 함수를 쓰던 코드)를 하나도 안 건드리기
+         위해서다.
 
-    반환값에 stage_logs(각 stage의 n_src/n_tgt/fitness/rmse)를 포함해서
-    fitness=0.000처럼 완전히 실패하는 경우 어느 단계에서 무너졌는지 바로
-    확인할 수 있게 했다."""
-    T = T_init.copy()
-    stage_logs: list[dict] = []
-    for i, stage in enumerate(params.icp_stages):
-        voxel = stage.get("voxel")
-        n_radius = (voxel * params.normal_radius_factor) if voxel is not None else params.normal_radius_final
-        src = _prep_stage_cloud(cad_source, voxel, n_radius)
-        tgt = _prep_stage_cloud(scene_source, voxel, n_radius)
-
-        estimation = (
-            o3d.pipelines.registration.TransformationEstimationPointToPlane()
-            if voxel is None else
-            o3d.pipelines.registration.TransformationEstimationPointToPoint()
-        )
-        res = o3d.pipelines.registration.registration_icp(
-            src, tgt, stage["max_dist"], T, estimation,
-            o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=stage["max_iter"]),
-        )
-        T = np.asarray(res.transformation)
-        stage_logs.append({
-            "stage": i, "voxel": voxel, "max_dist": stage["max_dist"],
-            "n_src": len(src.points), "n_tgt": len(tgt.points),
-            "fitness": float(res.fitness), "rmse": float(res.inlier_rmse),
-            "method": "point-to-plane" if voxel is None else "point-to-point",
-        })
-
-    final = o3d.pipelines.registration.evaluate_registration(
-        cad_source, scene_source, params.icp_stages[-1]["max_dist"], T)
-    return T, float(final.fitness), float(final.inlier_rmse), stage_logs
+    다른 알고리즘으로 바꾸고 싶으면 estimator 인자에 원하는 PoseEstimator
+    인스턴스를 직접 넘기면 params.registration_type은 무시된다."""
+    est = estimator if estimator is not None else _build_default_estimator(params)
+    result = est.estimate(cad_source, scene_source, T_init)
+    return result.T, result.fitness, result.rmse, result.stage_logs
 
 
-def correct_flipped_pose(T, cad_normal, cad_flipped, scene_source, params: ICPParams):
+def correct_flipped_pose(T, cad_normal, cad_flipped, scene_source, params: ICPParams,
+                          estimator: PoseEstimator | None = None):
     """뒤집힘 감지 시 [1]에서 미리 만들어둔 '뒤집힌 자세 기준 가시면 CAD'로
     재정합한다 (가시면 필터링 도입 이후로는 정자세 가시면 그대로 뒤집으면
-    보이는 면 자체가 안 맞으므로, 뒤집힌 자세용 가시면을 별도로 써야 한다)."""
+    보이는 면 자체가 안 맞으므로, 뒤집힌 자세용 가시면을 별도로 써야 한다).
+
+    estimator를 넘기면 재정합에도 같은 알고리즘 인스턴스를 재사용한다
+    (넘기지 않으면 params.registration_type 기준으로 새로 만듦)."""
+    est = estimator if estimator is not None else _build_default_estimator(params)
     if T[:3, :3][2, 2] >= 0:
         final = o3d.pipelines.registration.evaluate_registration(
             cad_normal, scene_source, params.icp_stages[-1]["max_dist"], T)
@@ -334,7 +347,7 @@ def correct_flipped_pose(T, cad_normal, cad_flipped, scene_source, params: ICPPa
     R_flip = np.diag([-1.0, -1.0, 1.0])
     T_flip = np.eye(4); T_flip[:3, :3] = R_flip
     c = T[:3, 3]; T_flip[:3, 3] = c - R_flip @ c
-    T_f, fit, rmse, stage_logs = run_icp_multistage(cad_flipped, scene_source, T_flip @ T, params)
+    T_f, fit, rmse, stage_logs = run_icp_multistage(cad_flipped, scene_source, T_flip @ T, params, estimator=est)
     return T_f, fit, rmse, True, stage_logs
 
 
@@ -440,9 +453,11 @@ def run_icp_for_instance(instance_id: int, pts_mm: np.ndarray, cad_pcd,
                           error="outlier 제거 후 포인트 부족", num_points_scene=n_pts,
                           num_points_after_outlier=n_after)
 
+    estimator = _build_default_estimator(p)
     T_init = build_icp_init(sc, cad_visible_normal, p)
-    T, fit, rmse, stage_logs = run_icp_multistage(cad_visible_normal, sc, T_init, p)
-    T, fit, rmse, flipped, flip_stage_logs = correct_flipped_pose(T, cad_visible_normal, cad_visible_flipped, sc, p)
+    T, fit, rmse, stage_logs = run_icp_multistage(cad_visible_normal, sc, T_init, p, estimator=estimator)
+    T, fit, rmse, flipped, flip_stage_logs = correct_flipped_pose(
+        T, cad_visible_normal, cad_visible_flipped, sc, p, estimator=estimator)
     if flipped:
         stage_logs = flip_stage_logs
 

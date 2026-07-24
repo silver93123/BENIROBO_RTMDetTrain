@@ -26,6 +26,7 @@ from app.core.paths import DEFAULT_CONFIG_PATH, DEFAULT_CAD_DIR, DEFAULT_DATASET
 from app.widgets.image_viewer import ImageViewer
 from app.core import icp_runner
 from app.core.icp_runner import ICPResult, ICPParams
+from app.core.registration import AVAILABLE_REGISTRATION_TYPES
 
 DEFAULT_SCORE_THRESHOLD = 0.3
 CAD_EXTS = {".stl", ".ply", ".obj"}
@@ -239,6 +240,22 @@ class ICPTestTab(QWidget):
         btn_reset.clicked.connect(lambda: self._reset_icp_params(defaults))
         grid.addWidget(btn_reset, 8, 2, 1, 2)
 
+        # 2026-07 패치: 정합 알고리즘 선택. 목록은 registration 패키지의
+        # AVAILABLE_REGISTRATION_TYPES를 그대로 쓴다 - 새 알고리즘이
+        # 추가되면 여기 손댈 필요 없이 자동으로 콤보박스에 나타난다.
+        grid.addWidget(QLabel("정합 알고리즘"), 11, 0)
+        self.combo_registration_type = QComboBox()
+        self.combo_registration_type.addItems(AVAILABLE_REGISTRATION_TYPES)
+        default_idx = self.combo_registration_type.findText(defaults.registration_type)
+        self.combo_registration_type.setCurrentIndex(max(0, default_idx))
+        grid.addWidget(self.combo_registration_type, 11, 1)
+        algo_hint = QLabel("어떤 정합 알고리즘으로 ICP를 돌릴지 선택합니다.\n"
+                            "알고리즘별 세부 파라미터(voxel/stage 등)는 코드 기본값을 씁니다 -\n"
+                            "이 UI는 전처리/제약조건 파라미터만 노출합니다.")
+        algo_hint.setStyleSheet("color: #888; font-size: 10px;")
+        algo_hint.setWordWrap(True)
+        grid.addWidget(algo_hint, 12, 0, 1, 4)
+
         return box
 
     def _reset_icp_params(self, defaults: ICPParams) -> None:
@@ -257,6 +274,8 @@ class ICPTestTab(QWidget):
         self.spin_axis_roll.setValue(defaults.cad_axis_roll_deg)
         self.spin_axis_pitch.setValue(defaults.cad_axis_pitch_deg)
         self.spin_axis_yaw.setValue(defaults.cad_axis_yaw_deg)
+        idx = self.combo_registration_type.findText(defaults.registration_type)
+        self.combo_registration_type.setCurrentIndex(max(0, idx))
 
     def _build_icp_params(self) -> ICPParams:
         """스핀박스 현재 값들로 ICPParams를 만든다 (icp_stages 다단계 리스트는 기본값 유지)."""
@@ -276,6 +295,7 @@ class ICPTestTab(QWidget):
             roll_limit_deg=self.spin_roll_limit.value(),
             pitch_limit_deg=self.spin_pitch_limit.value(),
             yaw_limit_deg=self.spin_yaw_limit.value(),
+            registration_type=self.combo_registration_type.currentText(),
         )
 
     # ------------------------------------------------------ 체크포인트 prefill
