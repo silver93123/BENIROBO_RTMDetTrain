@@ -103,6 +103,20 @@ class ICPParams:
     normal_radius_factor: float = 2.5
     normal_radius_final: float = 0.004   # m
 
+    # 2026-07 추가: registration_type="fgr_global"일 때만 쓰이는 파라미터.
+    # 기본값은 app/core/registration/fgr_global.py의 FGRParams와 동일하게
+    # 맞춰뒀다 - 여기가 UI 노출용 "미러"고, 실제 알고리즘 파라미터 정의는
+    # FGRParams가 갖고 있다 (_build_default_estimator가 여기 값을 그대로
+    # FGRGlobalRegistration 생성자에 전달).
+    fgr_voxel_size_m: float = 0.005
+    fgr_normal_radius_factor: float = 2.0
+    fgr_fpfh_radius_factor: float = 5.0
+    fgr_distance_threshold_factor: float = 3.0
+    fgr_refine_with_icp: bool = True
+    fgr_refine_max_dist_m: float = 0.003
+    fgr_use_rotation_prior: bool = True
+    fgr_max_rotation_deviation_deg: float = 60.0
+
     fitness_threshold: float = 0.7
     xyz_max_m: float = 2.0
 
@@ -133,9 +147,9 @@ class ICPParams:
     # ICP 초기 자세 고정값 (deg) - 관찰 후 조정.
     # [1] CAD 가시면 계산에도 이 값이 그대로 쓰인다 (부품이 대략 이 자세로
     # 카메라를 보고 있다고 가정하고 어느 면이 보이는지 판단하기 때문).
-    init_roll_deg: float = 0.0
-    init_pitch_deg: float = 0.0
-    init_yaw_deg: float = 0.0
+    init_roll_deg: float = 180.0
+    init_pitch_deg: float = 180.0
+    init_yaw_deg: float = 90.0
 
     # 회전 구속 조건 (deg). 대칭 범위(±roll_limit_deg 등)로 다룬다.
     roll_limit_deg: float = 45.0
@@ -299,13 +313,26 @@ def _build_default_estimator(params: ICPParams) -> PoseEstimator:
     """params.registration_type으로 estimator를 만든다.
     open3d_multistage인 경우 params에 들어있는 icp_stages 등 기존 필드를
     그대로 Open3DMultiStageICP 생성자 인자로 넘겨서, 이전과 동일한 기본값
-    (혹은 UI에서 바뀐 값)이 그대로 적용되게 한다."""
+    (혹은 UI에서 바뀐 값)이 그대로 적용되게 한다.
+    fgr_global인 경우도 마찬가지로 params.fgr_* 필드를 FGRGlobalRegistration
+    생성자 인자로 그대로 전달한다."""
     cfg = {"type": params.registration_type}
     if params.registration_type == "open3d_multistage":
         cfg["params"] = {
             "icp_stages": params.icp_stages,
             "normal_radius_factor": params.normal_radius_factor,
             "normal_radius_final": params.normal_radius_final,
+        }
+    elif params.registration_type == "fgr_global":
+        cfg["params"] = {
+            "voxel_size_m": params.fgr_voxel_size_m,
+            "normal_radius_factor": params.fgr_normal_radius_factor,
+            "fpfh_radius_factor": params.fgr_fpfh_radius_factor,
+            "distance_threshold_factor": params.fgr_distance_threshold_factor,
+            "refine_with_icp": params.fgr_refine_with_icp,
+            "refine_max_dist_m": params.fgr_refine_max_dist_m,
+            "use_rotation_prior": params.fgr_use_rotation_prior,
+            "max_rotation_deviation_deg": params.fgr_max_rotation_deviation_deg,
         }
     return create_registrator(cfg)
 

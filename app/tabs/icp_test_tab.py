@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QListWidget, QListWidgetItem, QFileDialog, QSlider, QMessageBox,
     QLineEdit, QComboBox, QScrollArea, QFrame, QGroupBox, QGridLayout,
-    QDoubleSpinBox, QSpinBox,
+    QDoubleSpinBox, QSpinBox, QCheckBox,
 )
 
 from app.core.detector import Detector, Detection
@@ -148,7 +148,24 @@ class ICPTestTab(QWidget):
         run_row.addStretch(1)
         center.addLayout(run_row)
 
-        center.addWidget(self._build_icp_params_box())
+        # 2026-07 추가: 파라미터 박스(ICP + FGR)가 늘어나면서 화면 안에
+        # 다 안 들어오는 문제 - 이 둘만 따로 스크롤 영역에 담아서 높이를
+        # 제한한다. 이미지 뷰어는 스크롤 밖에 그대로 둬서 항상 보이게 유지.
+        params_container = QWidget()
+        params_layout = QVBoxLayout(params_container)
+        params_layout.setContentsMargins(0, 0, 0, 0)
+        self.fgr_box = self._build_fgr_params_box()
+        params_layout.addWidget(self._build_icp_params_box())
+        params_layout.addWidget(self.fgr_box)
+        params_layout.addStretch(1)
+
+        params_scroll = QScrollArea()
+        params_scroll.setWidgetResizable(True)
+        params_scroll.setWidget(params_container)
+        params_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        params_scroll.setMaximumHeight(320)  # 화면이 더 넓으면 이 값을 늘려도 됨
+        params_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        center.addWidget(params_scroll)
 
         self.image_viewer = ImageViewer()
         center.addWidget(self.image_viewer, stretch=1)
@@ -249,13 +266,74 @@ class ICPTestTab(QWidget):
         default_idx = self.combo_registration_type.findText(defaults.registration_type)
         self.combo_registration_type.setCurrentIndex(max(0, default_idx))
         grid.addWidget(self.combo_registration_type, 11, 1)
+        self.combo_registration_type.currentTextChanged.connect(self._on_registration_type_changed)
         algo_hint = QLabel("어떤 정합 알고리즘으로 ICP를 돌릴지 선택합니다.\n"
-                            "알고리즘별 세부 파라미터(voxel/stage 등)는 코드 기본값을 씁니다 -\n"
-                            "이 UI는 전처리/제약조건 파라미터만 노출합니다.")
+                            "알고리즘별 세부 파라미터는 아래(open3d_multistage는 이 박스,\n"
+                            "fgr_global은 바로 아래 'FGR 파라미터' 박스)에서 조정합니다.")
         algo_hint.setStyleSheet("color: #888; font-size: 10px;")
         algo_hint.setWordWrap(True)
         grid.addWidget(algo_hint, 12, 0, 1, 4)
 
+        return box
+
+    def _on_registration_type_changed(self, algo_type: str) -> None:
+        """FGR 전용 파라미터 박스는 fgr_global 선택시에만 보여준다 -
+        open3d_multistage를 쓸 땐 어차피 안 쓰이는 파라미터라 숨겨서 헷갈리지
+        않게 한다."""
+        self.fgr_box.setVisible(algo_type == "fgr_global")
+
+    def _build_fgr_params_box(self) -> QGroupBox:
+        """FGR(fgr_global) 전용 파라미터. registration/fgr_global.py의
+        FGRParams 기본값과 1:1로 대응한다. registration_type이
+        open3d_multistage일 때는 이 박스 자체가 숨겨진다
+        (_on_registration_type_changed 참고)."""
+        defaults = ICPParams()
+        box = QGroupBox("FGR 파라미터 (registration_type=fgr_global)")
+        grid = QGridLayout(box)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(4)
+
+        def add_double(row, col, label, value, minimum, maximum, step, decimals=4):
+            grid.addWidget(QLabel(label), row, col * 2)
+            spin = QDoubleSpinBox()
+            spin.setRange(minimum, maximum)
+            spin.setSingleStep(step)
+            spin.setDecimals(decimals)
+            spin.setValue(value)
+            spin.setFixedWidth(90)
+            grid.addWidget(spin, row, col * 2 + 1)
+            return spin
+
+        self.spin_fgr_voxel = add_double(0, 0, "voxel size (m)", defaults.fgr_voxel_size_m,
+                                          0.0005, 0.05, 0.0005, 4)
+        self.spin_fgr_normal_factor = add_double(0, 1, "normal 반경 배수", defaults.fgr_normal_radius_factor,
+                                                  0.5, 10.0, 0.5, 2)
+        self.spin_fgr_fpfh_factor = add_double(1, 0, "FPFH 반경 배수", defaults.fgr_fpfh_radius_factor,
+                                                1.0, 20.0, 0.5, 2)
+        self.spin_fgr_dist_factor = add_double(1, 1, "대응거리 배수", defaults.fgr_distance_threshold_factor,
+                                                0.5, 10.0, 0.5, 2)
+
+        self.check_fgr_refine = QCheckBox("ICP로 정밀화 (refine_with_icp)")
+        self.check_fgr_refine.setChecked(defaults.fgr_refine_with_icp)
+        grid.addWidget(self.check_fgr_refine, 2, 0, 1, 2)
+        self.spin_fgr_refine_dist = add_double(3, 0, "정밀화 max_dist (m)", defaults.fgr_refine_max_dist_m,
+                                                0.0005, 0.02, 0.0005, 4)
+
+        self.check_fgr_rotation_prior = QCheckBox("회전 prior 검증 (use_rotation_prior)")
+        self.check_fgr_rotation_prior.setChecked(defaults.fgr_use_rotation_prior)
+        grid.addWidget(self.check_fgr_rotation_prior, 4, 0, 1, 2)
+        self.spin_fgr_max_dev = add_double(5, 0, "최대 허용 편차 (deg)", defaults.fgr_max_rotation_deviation_deg,
+                                            0.0, 180.0, 5.0, 1)
+
+        hint = QLabel("voxel size: 부품 크기에 맞춰 조정 (작은 부품은 3mm 이하 권장).\n"
+                      "대응거리 배수: 이 값 * voxel size가 FGR이 대응점으로 인정하는 최대 거리.\n"
+                      "회전 prior 검증: 결과 회전이 '초기 roll/pitch/yaw'와 너무 다르면\n"
+                      "대칭/반복 형상 오탐으로 보고 초기값 기반 ICP로 대체합니다.")
+        hint.setStyleSheet("color: #888; font-size: 10px;")
+        hint.setWordWrap(True)
+        grid.addWidget(hint, 6, 0, 1, 4)
+
+        box.setVisible(defaults.registration_type == "fgr_global")
         return box
 
     def _reset_icp_params(self, defaults: ICPParams) -> None:
@@ -276,6 +354,14 @@ class ICPTestTab(QWidget):
         self.spin_axis_yaw.setValue(defaults.cad_axis_yaw_deg)
         idx = self.combo_registration_type.findText(defaults.registration_type)
         self.combo_registration_type.setCurrentIndex(max(0, idx))
+        self.spin_fgr_voxel.setValue(defaults.fgr_voxel_size_m)
+        self.spin_fgr_normal_factor.setValue(defaults.fgr_normal_radius_factor)
+        self.spin_fgr_fpfh_factor.setValue(defaults.fgr_fpfh_radius_factor)
+        self.spin_fgr_dist_factor.setValue(defaults.fgr_distance_threshold_factor)
+        self.check_fgr_refine.setChecked(defaults.fgr_refine_with_icp)
+        self.spin_fgr_refine_dist.setValue(defaults.fgr_refine_max_dist_m)
+        self.check_fgr_rotation_prior.setChecked(defaults.fgr_use_rotation_prior)
+        self.spin_fgr_max_dev.setValue(defaults.fgr_max_rotation_deviation_deg)
 
     def _build_icp_params(self) -> ICPParams:
         """스핀박스 현재 값들로 ICPParams를 만든다 (icp_stages 다단계 리스트는 기본값 유지)."""
@@ -296,6 +382,14 @@ class ICPTestTab(QWidget):
             pitch_limit_deg=self.spin_pitch_limit.value(),
             yaw_limit_deg=self.spin_yaw_limit.value(),
             registration_type=self.combo_registration_type.currentText(),
+            fgr_voxel_size_m=self.spin_fgr_voxel.value(),
+            fgr_normal_radius_factor=self.spin_fgr_normal_factor.value(),
+            fgr_fpfh_radius_factor=self.spin_fgr_fpfh_factor.value(),
+            fgr_distance_threshold_factor=self.spin_fgr_dist_factor.value(),
+            fgr_refine_with_icp=self.check_fgr_refine.isChecked(),
+            fgr_refine_max_dist_m=self.spin_fgr_refine_dist.value(),
+            fgr_use_rotation_prior=self.check_fgr_rotation_prior.isChecked(),
+            fgr_max_rotation_deviation_deg=self.spin_fgr_max_dev.value(),
         )
 
     # ------------------------------------------------------ 체크포인트 prefill
