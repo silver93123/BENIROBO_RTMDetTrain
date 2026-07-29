@@ -36,18 +36,27 @@ class Detector:
         device: str = "cuda:0",
         score_threshold: float = 0.3,
         backend: str = "rtmdet_ins",
+        **backend_kwargs,
     ):
         """
         Args:
             backend: "rtmdet_ins"(기존, 회전 없음) 또는
                 "rtmdet_ins_rothead"(회전 헤드 포함).
                 src.detection.AVAILABLE_DETECTOR_TYPES 참고.
+            **backend_kwargs: 특정 backend에만 필요한 추가 생성자 인자를
+                그대로 통과시킨다. 예: backend="rtmdet_ins_rothead"일 때
+                rotation_checkpoint=..., rotation_backbone=..., 
+                rotation_crop_size=... (RTMDetInferencerRotHead.__init__
+                참고). rtmdet_ins에는 해당사항 없음 - 그냥 안 넘기면 됨.
+                이렇게 열어두면 새 backend가 자기만의 파라미터를 추가해도
+                이 클래스를 다시 고칠 필요가 없다.
         """
         self.checkpoint_path = checkpoint_path
         self.config_path = config_path
         self.device = device
         self.score_threshold = score_threshold
         self.backend = backend
+        self.backend_kwargs = backend_kwargs
         self._inferencer = None
 
     def load_model(self) -> None:
@@ -74,15 +83,15 @@ class Detector:
                 "rtmdet_inferencer.py 등)가 프로젝트 루트에 있는지 확인하세요."
             ) from exc
 
-        self._inferencer = create_detector({
-            "type": self.backend,
-            "params": {
-                "config": self.config_path,
-                "checkpoint": self.checkpoint_path,
-                "device": self.device,
-                "score_threshold": self.score_threshold,
-            },
-        })
+        params = {
+            "config": self.config_path,
+            "checkpoint": self.checkpoint_path,
+            "device": self.device,
+            "score_threshold": self.score_threshold,
+        }
+        params.update(self.backend_kwargs)
+
+        self._inferencer = create_detector({"type": self.backend, "params": params})
 
     def predict(
         self,
