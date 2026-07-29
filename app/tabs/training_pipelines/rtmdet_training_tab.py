@@ -1,4 +1,4 @@
-"""탭 2: 모델 학습.
+"""'2. 모델 학습' 섹션의 RTMDet 학습 파이프라인.
 
 실제 학습 스크립트(Train_rtmdet_model.py) 기준:
   python scripts/2_Train_rtmdet_model.py --dataset <폴더명> [--config ...] [--epochs ...]
@@ -53,7 +53,7 @@ class MetricCard(QFrame):
         self.value_label.setText(text)
 
 
-class TrainingTab(QWidget):
+class RTMDetTrainingTab(QWidget):
     log_message = pyqtSignal(str)
 
     def __init__(self, parent=None):
