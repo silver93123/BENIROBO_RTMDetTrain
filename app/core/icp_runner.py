@@ -456,12 +456,18 @@ class ICPResult:
 # =============================================================================
 def run_icp_for_instance(instance_id: int, pts_mm: np.ndarray, cad_pcd,
                           cad_visible_normal, cad_visible_flipped,
-                          params: ICPParams | None = None) -> ICPResult:
+                          params: ICPParams | None = None,
+                          T_init_override: np.ndarray | None = None) -> ICPResult:
     """params를 넘기지 않으면 default_params()를 쓴다.
 
     cad_pcd            : 축보정만 적용된 CAD 전체 (pick point 중심 계산 / 3D 시각화용)
     cad_visible_normal  : [1] 정자세 기준 가시면 서브셋 (정합 소스)
     cad_visible_flipped : [1] 뒤집힌 자세 기준 가시면 서브셋 (뒤집힘 감지 시 재정합용)
+    T_init_override     : 주어지면 build_icp_init()(ICP 파라미터의 초기
+        roll/pitch/yaw 기반 근사)을 쓰지 않고 이 값을 coarse stage 초기값으로
+        그대로 사용한다. 2D 단계(예: 회전 헤드)에서 이미 인스턴스별 초기
+        pose를 추정한 경우 여기로 전달하면 된다 (4x4, m 단위, source(CAD)
+        -> scene 방향 - 기존 T_init/T와 동일한 관례).
     """
     p = params if params is not None else default_params()
 
@@ -481,7 +487,7 @@ def run_icp_for_instance(instance_id: int, pts_mm: np.ndarray, cad_pcd,
                           num_points_after_outlier=n_after)
 
     estimator = _build_default_estimator(p)
-    T_init = build_icp_init(sc, cad_visible_normal, p)
+    T_init = T_init_override if T_init_override is not None else build_icp_init(sc, cad_visible_normal, p)
     T, fit, rmse, stage_logs = run_icp_multistage(cad_visible_normal, sc, T_init, p, estimator=estimator)
     T, fit, rmse, flipped, flip_stage_logs = correct_flipped_pose(
         T, cad_visible_normal, cad_visible_flipped, sc, p, estimator=estimator)

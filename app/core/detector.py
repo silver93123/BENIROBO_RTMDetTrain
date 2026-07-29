@@ -23,6 +23,9 @@ class Detection:
     confidence: float
     bbox: tuple[float, float, float, float]  # x1, y1, x2, y2 (픽셀 좌표)
     mask: np.ndarray | None = None  # (H, W) bool - 있으면 마스크 오버레이에 쓸 수 있음
+    # rtmdet_ins_rothead 백엔드일 때만 채워짐 (4x4, m 단위). 없으면 None
+    # -> icp_runner.py의 기존 build_icp_init() fallback을 그대로 쓰면 됨.
+    initial_pose: np.ndarray | None = None
 
 
 class Detector:
@@ -32,15 +35,27 @@ class Detector:
         config_path: str | None = None,
         device: str = "cuda:0",
         score_threshold: float = 0.3,
+        backend: str = "rtmdet_ins",
     ):
+        """
+        Args:
+            backend: "rtmdet_ins"(기존, 회전 없음) 또는
+                "rtmdet_ins_rothead"(회전 헤드 포함).
+                src.detection.AVAILABLE_DETECTOR_TYPES 참고.
+        """
         self.checkpoint_path = checkpoint_path
         self.config_path = config_path
         self.device = device
         self.score_threshold = score_threshold
+        self.backend = backend
         self._inferencer = None
 
     def load_model(self) -> None:
-        """실제 파이프라인 스크립트와 동일하게 RTMDetInferencer를 생성한다."""
+        """src.detection.create_detector() 팩토리로 백엔드 인스턴스를 생성한다.
+
+        registration/camera 모듈과 동일한 팩토리 패턴 - 백엔드 종류는
+        문자열 하나로 결정되고, 이 함수는 그 종류를 몰라도 된다.
+        """
         if not self.checkpoint_path:
             raise ValueError("체크포인트 경로가 지정되지 않았습니다.")
         if not self.config_path:
@@ -51,24 +66,38 @@ class Detector:
             )
 
         try:
-            from src.detection import RTMDetInferencer  # <프로젝트 루트>/src/detection.py
+            from src.detection import create_detector
         except ImportError as exc:
             raise ImportError(
-                "src/detection.py의 RTMDetInferencer를 import할 수 없습니다. "
-                "이 클래스가 실제 추론 엔진 구현체인데, 이 앱에는 포함되어 있지 않습니다. "
-                "프로젝트 루트에 src/detection.py 파일이 있는지, "
-                "그리고 그 안에 RTMDetInferencer 클래스가 있는지 확인하세요."
+                "src/detection의 create_detector를 import할 수 없습니다. "
+                "src/detection/ 패키지(base.py, __init__.py, "
+                "rtmdet_inferencer.py 등)가 프로젝트 루트에 있는지 확인하세요."
             ) from exc
 
-        self._inferencer = RTMDetInferencer(
-            config=self.config_path,
-            checkpoint=self.checkpoint_path,
-            device=self.device,
-            score_threshold=self.score_threshold,
-        )
+        self._inferencer = create_detector({
+            "type": self.backend,
+            "params": {
+                "config": self.config_path,
+                "checkpoint": self.checkpoint_path,
+                "device": self.device,
+                "score_threshold": self.score_threshold,
+            },
+        })
 
-    def predict(self, image_path: str, conf_threshold: float | None = None) -> list[Detection]:
-        """이미지 한 장에 대해 검출을 수행한다 (원본 스크립트의 process_frame_detection과 동일 흐름)."""
+    def predict(
+        self,
+        image_path: str,
+        conf_threshold: float | None = None,
+        pcd_organized_mm: np.ndarray | None = None,
+        valid_mask: np.ndarray | None = None,
+    ) -> list[Detection]:
+        """이미지 한 장에 대해 검출을 수행한다.
+
+        pcd_organized_mm/valid_mask는 backend="rtmdet_ins_rothead"일 때만
+        의미가 있다 (initial_pose 계산에 필요, icp_test_tab.py가 세션에서
+        로드한 것과 동일한 배열을 그대로 넘기면 됨). rtmdet_ins backend에서는
+        무시된다.
+        """
         if self._inferencer is None:
             self.load_model()
 
@@ -79,7 +108,12 @@ class Detector:
             raise ValueError(f"이미지를 읽을 수 없습니다: {image_path}")
         bgr = np.stack([gray, gray, gray], axis=-1)
 
-        results = self._inferencer.infer(bgr)
+        if self.backend == "rtmdet_ins_rothead":
+            results = self._inferencer.infer(
+                bgr, pcd_organized_mm=pcd_organized_mm, valid_mask=valid_mask
+            )
+        else:
+            results = self._inferencer.infer(bgr)
 
         detections: list[Detection] = []
         for r in results:
@@ -93,6 +127,7 @@ class Detector:
                     confidence=score,
                     bbox=(x1, y1, x2, y2),
                     mask=getattr(r, "mask", None),
+                    initial_pose=getattr(r, "initial_pose", None),
                 )
             )
         return detections

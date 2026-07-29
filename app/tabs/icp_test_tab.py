@@ -27,6 +27,9 @@ from app.widgets.image_viewer import ImageViewer
 from app.core import icp_runner
 from app.core.icp_runner import ICPResult, ICPParams
 from app.core.registration import AVAILABLE_REGISTRATION_TYPES
+from src.detection import AVAILABLE_DETECTOR_TYPES
+
+DEFAULT_DETECTOR_BACKEND = "rtmdet_ins"
 
 DEFAULT_SCORE_THRESHOLD = 0.3
 CAD_EXTS = {".stl", ".ply", ".obj"}
@@ -124,6 +127,24 @@ class ICPTestTab(QWidget):
         btn_browse_cfg.clicked.connect(self._on_browse_config)
         cfg_row.addWidget(btn_browse_cfg)
         center.addLayout(cfg_row)
+
+        # 2026-07 추가: 2D 검출 백엔드 선택. registration 알고리즘 콤보와
+        # 동일한 패턴 - 목록은 src.detection.AVAILABLE_DETECTOR_TYPES를
+        # 그대로 쓴다. 새 백엔드가 추가되면 여기 손댈 필요 없이 자동으로
+        # 콤보박스에 나타난다.
+        backend_row = QHBoxLayout()
+        backend_row.addWidget(QLabel("검출 백엔드"))
+        self.combo_detector_backend = QComboBox()
+        self.combo_detector_backend.addItems(AVAILABLE_DETECTOR_TYPES)
+        default_idx = self.combo_detector_backend.findText(DEFAULT_DETECTOR_BACKEND)
+        self.combo_detector_backend.setCurrentIndex(max(0, default_idx))
+        backend_row.addWidget(self.combo_detector_backend, stretch=1)
+        self.detector_backend_hint = QLabel()
+        self.detector_backend_hint.setStyleSheet("color: #888; font-size: 10px;")
+        backend_row.addWidget(self.detector_backend_hint)
+        center.addLayout(backend_row)
+        self.combo_detector_backend.currentTextChanged.connect(self._on_detector_backend_changed)
+        self._on_detector_backend_changed(self.combo_detector_backend.currentText())
 
         run_row = QHBoxLayout()
         self.btn_run_detect = QPushButton("2D 검출 실행")
@@ -504,6 +525,19 @@ class ICPTestTab(QWidget):
         self.btn_open_viewer.setEnabled(False)
 
     # -------------------------------------------------------------- 2D 검출
+    def _on_detector_backend_changed(self, backend: str) -> None:
+        """rtmdet_ins_rothead 선택 시, 이 백엔드가 initial_pose(coarse
+        alignment 초기값)까지 제공한다는 걸 알려준다. rtmdet_ins는 기존과
+        동일하게 마스크/bbox만 낸다."""
+        if backend == "rtmdet_ins_rothead":
+            self.detector_backend_hint.setText(
+                "회전 헤드 → ICP 초기 pose 자동 제공"
+            )
+        else:
+            self.detector_backend_hint.setText(
+                "기존 방식 (초기 pose는 ICP 파라미터의 '초기 roll/pitch/yaw' 사용)"
+            )
+
     def _on_run_detection(self) -> None:
         if not self._current_frame:
             QMessageBox.warning(self, "알림", "먼저 세션과 프레임을 선택하세요.")
@@ -516,16 +550,36 @@ class ICPTestTab(QWidget):
 
         threshold = self.thresh_slider.value() / 100.0
         image_path = str(Path(self._session_path) / "intensity" / f"{self._current_frame}.png")
+        backend = self.combo_detector_backend.currentText()
 
-        detector = Detector(checkpoint_path=checkpoint, config_path=config, score_threshold=threshold)
+        detector = Detector(
+            checkpoint_path=checkpoint, config_path=config,
+            score_threshold=threshold, backend=backend,
+        )
         try:
-            detections = detector.predict(image_path, conf_threshold=threshold)
+            if backend == "rtmdet_ins_rothead":
+                # 이미 로드된 프레임의 3D 데이터를 그대로 재사용 - icp_runner의
+                # extract_instance_points_mm과 완전히 동일한 정의를 공유한다.
+                detections = detector.predict(
+                    image_path, conf_threshold=threshold,
+                    pcd_organized_mm=self._pcd_organized,
+                    valid_mask=self._valid_mask,
+                )
+            else:
+                detections = detector.predict(image_path, conf_threshold=threshold)
         except ImportError as exc:
             QMessageBox.critical(self, "추론 엔진 없음", str(exc))
             return
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "추론 오류", str(exc))
             return
+
+        n_with_pose = sum(1 for d in detections if getattr(d, "initial_pose", None) is not None)
+        if backend == "rtmdet_ins_rothead" and n_with_pose < len(detections):
+            self.log_message.emit(
+                f"[ICP 탭] ⚠ 회전 헤드가 initial_pose를 낸 인스턴스: "
+                f"{n_with_pose}/{len(detections)} (나머지는 ICP 기본 초기값 사용)"
+            )
 
         self._last_detections = [d for d in detections if d.mask is not None]
         skipped = len(detections) - len(self._last_detections)
@@ -567,13 +621,18 @@ class ICPTestTab(QWidget):
             pts_mm = icp_runner.extract_instance_points_mm(
                 det.mask, self._pcd_organized, self._valid_mask, erode_px=params.mask_erode_px
             )
+            # 회전 헤드 백엔드가 이 인스턴스의 초기 pose를 줬으면(=det.initial_pose
+            # not None) coarse stage 초기값으로 그대로 쓰고, 없으면 기존처럼
+            # build_icp_init()(ICP 파라미터의 초기 roll/pitch/yaw 기반)에 맡긴다.
             result = icp_runner.run_icp_for_instance(
-                i, pts_mm, self._cad_pcd, self._cad_visible_normal, self._cad_visible_flipped, params=params
+                i, pts_mm, self._cad_pcd, self._cad_visible_normal, self._cad_visible_flipped,
+                params=params, T_init_override=getattr(det, "initial_pose", None),
             )
             results.append(result)
             if result.ok:
+                init_src = "rothead" if getattr(det, "initial_pose", None) is not None else "default"
                 self.log_message.emit(
-                    f"[ICP 탭]  obj{i} ✓ fitness={result.fitness:.3f} "
+                    f"[ICP 탭]  obj{i} ✓ fitness={result.fitness:.3f} (init={init_src}) "
                     f"pick={tuple(round(v, 1) for v in result.pick_point_mm)} mm"
                 )
             else:

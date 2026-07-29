@@ -18,38 +18,21 @@ MMDetection 3.x API를 사용해 RTMDet-Ins 모델을 로드하고, intensity �
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
 
+from src.detection.base import DetectionResult, DetectorBase
+
 logger = logging.getLogger(__name__)
 
-
-@dataclass
-class DetectionResult:
-    """한 인스턴스의 검출 결과.
-
-    Attributes:
-        mask: (H, W) bool. 인스턴스 픽셀 마스크.
-        bbox: (4,) float32 [x1, y1, x2, y2]. axis-aligned bbox.
-        score: float. 검출 신뢰도 [0, 1].
-        class_id: int. COCO 클래스 ID (0..79).
-        class_name: str. 사람이 읽을 수 있는 클래스 이름.
-    """
-    mask: np.ndarray
-    bbox: np.ndarray
-    score: float
-    class_id: int
-    class_name: str
-
-    @property
-    def n_pixels(self) -> int:
-        return int(self.mask.sum())
+# 하위 호환: 기존에 `from src.detection.rtmdet_inferencer import DetectionResult`로
+# import하던 코드가 있을 수 있으므로 base.py의 것을 그대로 재노출.
+__all__ = ["DetectionResult", "RTMDetInferencer"]
 
 
-class RTMDetInferencer:
+class RTMDetInferencer(DetectorBase):
     """RTMDet-Ins 모델 wrapper.
 
     사용 예:
