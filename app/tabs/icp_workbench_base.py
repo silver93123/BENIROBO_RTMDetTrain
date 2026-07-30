@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import json
 from pathlib import Path
 
 import numpy as np
@@ -585,7 +586,10 @@ class ICPWorkbenchTab(QWidget):
 
         self._last_icp_results = results
         self._render_result_panel(results)
-        self.btn_open_viewer.setEnabled(any(r.ok for r in results))
+        # 2026-07 변경: 실패한 인스턴스도 이제 뷰어에 별도 색으로 표시되므로
+        # (build_scene_components의 Failed ICP Instances 레이어), 성공 여부와
+        # 무관하게 결과가 하나라도 있으면 뷰어를 열 수 있게 한다.
+        self.btn_open_viewer.setEnabled(len(results) > 0)
 
         n_ok = sum(r.ok for r in results)
         self.log_message.emit(f"[{self.LOG_PREFIX}] {active_tab.pipeline_name} ICP 완료: 성공 {n_ok}/{len(results)}")
@@ -687,17 +691,32 @@ class ICPWorkbenchTab(QWidget):
         background_pcd = None
         if self._pcd_organized is not None and self._valid_mask is not None:
             background_pcd = icp_runner.build_background_pcd(
-                self._pcd_organized, self._valid_mask, exclude_mask=exclude_mask
+                self._pcd_organized, self._valid_mask, exclude_mask=exclude_mask,
+                color_mode="height",
             )
 
-        combined = icp_runner.build_scene_geometry(self._last_icp_results, self._cad_pcd, background_pcd)
-        if len(combined.points) == 0:
-            QMessageBox.information(self, "알림", "표시할 성공한 인스턴스가 없습니다.")
+        # 2026-07 개편: 레이어를 하나로 합치지 않고 이름별로 분리해서 각각
+        # PLY로 저장 - 뷰어에서 레이어별 체크박스로 켜고 끌 수 있게 하기 위함
+        # (app/core/icp_viewer.py의 매니페스트 방식 참고).
+        components = icp_runner.build_scene_components(self._last_icp_results, self._cad_pcd, background_pcd)
+        if not components:
+            QMessageBox.information(self, "알림", "표시할 포인트클라우드가 없습니다 (배경/검출 결과 모두 비어있음).")
             return
 
-        tmp_path = Path(tempfile.gettempdir()) / f"icp_view_{self._current_frame or 'frame'}.ply"
         import open3d as o3d
-        o3d.io.write_point_cloud(str(tmp_path), combined, write_ascii=False)
+
+        view_dir = Path(tempfile.gettempdir()) / f"icp_view_{self._current_frame or 'frame'}"
+        view_dir.mkdir(parents=True, exist_ok=True)
+
+        layers = []
+        for i, (name, pcd) in enumerate(components.items()):
+            filename = f"layer_{i}.ply"
+            o3d.io.write_point_cloud(str(view_dir / filename), pcd, write_ascii=False)
+            layers.append({"name": name, "file": filename, "visible": True})
+
+        manifest_path = view_dir / "manifest.json"
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({"layers": layers}, f, ensure_ascii=False, indent=2)
 
         if self._viewer_process is not None and self._viewer_process.state() != QProcess.ProcessState.NotRunning:
             self._viewer_process.kill()
@@ -705,6 +724,8 @@ class ICPWorkbenchTab(QWidget):
         self._viewer_process = QProcess(self)
         self._viewer_process.start(
             sys.executable,
-            ["-m", "app.core.icp_viewer", str(tmp_path), "--title", f"ICP 결과 - {self._current_frame}"],
+            ["-m", "app.core.icp_viewer", str(manifest_path), "--title", f"ICP 결과 - {self._current_frame}"],
         )
-        self.log_message.emit(f"[{self.LOG_PREFIX}] 3D 뷰어 실행: {tmp_path}")
+        self.log_message.emit(
+            f"[{self.LOG_PREFIX}] 3D 뷰어 실행: {manifest_path} ({len(layers)}개 레이어)"
+        )

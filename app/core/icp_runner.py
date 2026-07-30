@@ -586,6 +586,11 @@ class ICPResult:
     pick_point_mm: list[float] | None = None
     T: np.ndarray | None = None
     scene_pcd: o3d.geometry.PointCloud | None = None
+    # 2026-07 추가: outlier 제거 "전" 원본 - RTMDet 탐지 마스크 영역을 그대로
+    # 3D로 옮긴 것. scene_pcd(위)는 outlier 제거 "후"라 실제 정합에 쓰인
+    # 포인트고, raw_scene_pcd는 뷰어에서 "RTMDet 탐지 마스킹 영역"을 그대로
+    # 보고 싶을 때 쓴다 - outlier 제거로 얼마나 걸러졌는지 눈으로 비교 가능.
+    raw_scene_pcd: o3d.geometry.PointCloud | None = None
     stage_logs: list[dict] | None = None
 
 
@@ -610,9 +615,17 @@ def run_icp_for_instance(instance_id: int, pts_mm: np.ndarray, cad_pcd,
     p = params if params is not None else default_params()
 
     n_pts = len(pts_mm)
+    # 2026-07 변경: raw_scene_pcd를 포인트 개수 체크보다 먼저 만든다 -
+    # 그래야 "포인트 부족"으로 가장 먼저 실패하는 경우에도 뷰어에서 그
+    # 영역이 완전히 사라지지 않고 최소한 raw 포인트라도 보여줄 수 있다.
+    raw_scene_pcd = o3d.geometry.PointCloud()
+    if n_pts > 0:
+        raw_scene_pcd.points = o3d.utility.Vector3dVector(pts_mm / 1000.0)
+
     if n_pts < MIN_POINTS_PER_INSTANCE:
         return ICPResult(instance_id=instance_id, ok=False,
-                          error=f"포인트 부족: {n_pts}개", num_points_scene=n_pts)
+                          error=f"포인트 부족: {n_pts}개", num_points_scene=n_pts,
+                          raw_scene_pcd=raw_scene_pcd)
 
     scene_pcd = o3d.geometry.PointCloud()
     scene_pcd.points = o3d.utility.Vector3dVector(pts_mm / 1000.0)
@@ -622,7 +635,7 @@ def run_icp_for_instance(instance_id: int, pts_mm: np.ndarray, cad_pcd,
     if n_after < 10:
         return ICPResult(instance_id=instance_id, ok=False,
                           error="outlier 제거 후 포인트 부족", num_points_scene=n_pts,
-                          num_points_after_outlier=n_after)
+                          num_points_after_outlier=n_after, raw_scene_pcd=raw_scene_pcd)
 
     estimator = _build_default_estimator(p)
     T_init = T_init_override if T_init_override is not None else build_icp_init(sc, cad_visible_normal, p)
@@ -637,21 +650,21 @@ def run_icp_for_instance(instance_id: int, pts_mm: np.ndarray, cad_pcd,
                           error=f"ICP 정합 실패 (fitness={fit:.3f} < {p.fitness_threshold:.2f})",
                           fitness=fit, rmse_m=rmse, was_flipped=flipped,
                           num_points_scene=n_pts, num_points_after_outlier=n_after, scene_pcd=sc,
-                          stage_logs=stage_logs)
+                          raw_scene_pcd=raw_scene_pcd, stage_logs=stage_logs)
 
     if max(abs(v) for v in T[:3, 3]) > p.xyz_max_m:
         return ICPResult(instance_id=instance_id, ok=False,
                           error=f"xyz 범위 이상 (허용 ±{p.xyz_max_m:.2f}m)",
                           fitness=fit, rmse_m=rmse, was_flipped=flipped,
                           num_points_scene=n_pts, num_points_after_outlier=n_after, scene_pcd=sc,
-                          stage_logs=stage_logs)
+                          raw_scene_pcd=raw_scene_pcd, stage_logs=stage_logs)
 
     rot_ok, rot_msg = check_rotation_constraint(T, p)
     if not rot_ok:
         return ICPResult(instance_id=instance_id, ok=False, error=rot_msg,
                           fitness=fit, rmse_m=rmse, was_flipped=flipped,
                           num_points_scene=n_pts, num_points_after_outlier=n_after, scene_pcd=sc,
-                          stage_logs=stage_logs)
+                          raw_scene_pcd=raw_scene_pcd, stage_logs=stage_logs)
 
     pose = transform_to_pose(T)
     cad_center_m = np.asarray(cad_pcd.get_center())
@@ -660,23 +673,50 @@ def run_icp_for_instance(instance_id: int, pts_mm: np.ndarray, cad_pcd,
     return ICPResult(instance_id=instance_id, ok=True, fitness=fit, rmse_m=rmse, was_flipped=flipped,
                       num_points_scene=n_pts, num_points_after_outlier=n_after,
                       pose=pose, pick_point_mm=pick_point_mm, T=T, scene_pcd=sc,
-                      stage_logs=stage_logs)
+                      raw_scene_pcd=raw_scene_pcd, stage_logs=stage_logs)
 
 
 # =============================================================================
 # 시각화용 통합 포인트클라우드 (3D 뷰어 창에 그대로 넘길 수 있음)
 # =============================================================================
-_BG_COLOR = np.array([0.55, 0.55, 0.55], dtype=np.float64)          # 전체 배경: 회색
-_INSTANCE_COLOR = np.array([0.9, 0.15, 0.1], dtype=np.float64)      # 마스킹된 인스턴스 포인트: 빨강
+_INSTANCE_COLOR = np.array([0.9, 0.15, 0.1], dtype=np.float64)      # ICP 정합용(outlier 제거 후) 인스턴스 포인트: 빨강
+_RAW_MASK_COLOR = np.array([1.0, 0.55, 0.0], dtype=np.float64)      # RTMDet 탐지 마스크 원본(outlier 제거 전): 주황
 _CAD_COLOR = np.array([0.15, 0.85, 0.25], dtype=np.float64)         # 정합된 CAD: 초록
 _PICK_COLOR = np.array([1.0, 0.9, 0.05], dtype=np.float64)          # 픽포인트 마커: 노랑 (인스턴스 빨강과 구분)
+_FAILED_COLOR = np.array([0.55, 0.05, 0.4], dtype=np.float64)       # ICP 실패한 인스턴스: 자주색 (배경/성공 인스턴스와 구분)
+
+
+def colorize_by_height(points_m: np.ndarray, colormap_name: str = "viridis",
+                        axis: int = 2) -> np.ndarray:
+    """포인트의 한 축(기본 Z=높이) 값을 컬러맵으로 매핑해 (N,3) RGB를 만든다.
+
+    percentile(1~99)로 정규화해서 소수의 극단값(flying pixel 등) 때문에
+    전체 색 분포가 한쪽으로 쏠리는 걸 방지한다.
+    """
+    import matplotlib.cm as cm
+
+    if len(points_m) == 0:
+        return np.empty((0, 3), dtype=np.float64)
+
+    values = points_m[:, axis]
+    lo, hi = np.percentile(values, [1, 99])
+    if hi - lo < 1e-9:
+        lo, hi = values.min(), values.max() + 1e-9
+    normalized = np.clip((values - lo) / (hi - lo), 0.0, 1.0)
+
+    cmap = cm.get_cmap(colormap_name)
+    return cmap(normalized)[:, :3]  # RGBA -> RGB
 
 
 def build_background_pcd(pcd_organized: np.ndarray, valid_mask: np.ndarray,
-                          exclude_mask: np.ndarray | None = None) -> o3d.geometry.PointCloud:
-    """세션의 pointcloud_organized(mm)/valid_mask 전체를 회색 배경 포인트클라우드로 만든다.
+                          exclude_mask: np.ndarray | None = None,
+                          color_mode: str = "height") -> o3d.geometry.PointCloud:
+    """세션의 pointcloud_organized(mm)/valid_mask 전체를 배경 포인트클라우드로 만든다.
     exclude_mask(검출된 인스턴스 마스크 합집합)를 주면 그 영역은 배경에서 빼서,
-    같은 위치에 인스턴스 색과 배경 회색이 겹쳐 지저분해지는 걸 막는다."""
+    같은 위치에 인스턴스 색과 배경색이 겹쳐 지저분해지는 걸 막는다.
+
+    color_mode: "height"(기본, Z값 기준 컬러맵) | "flat"(예전 방식, 단색 회색).
+    """
     valid = valid_mask.astype(bool)
     if exclude_mask is not None:
         valid = valid & ~exclude_mask.astype(bool)
@@ -687,34 +727,92 @@ def build_background_pcd(pcd_organized: np.ndarray, valid_mask: np.ndarray,
     pcd = o3d.geometry.PointCloud()
     if len(pts) == 0:
         return pcd
-    pcd.points = o3d.utility.Vector3dVector(pts / 1000.0)
-    pcd.colors = o3d.utility.Vector3dVector(np.tile(_BG_COLOR, (len(pts), 1)))
+    pts_m = pts / 1000.0
+    pcd.points = o3d.utility.Vector3dVector(pts_m)
+
+    if color_mode == "height":
+        pcd.colors = o3d.utility.Vector3dVector(colorize_by_height(pts_m))
+    else:
+        flat_gray = np.array([0.55, 0.55, 0.55], dtype=np.float64)
+        pcd.colors = o3d.utility.Vector3dVector(np.tile(flat_gray, (len(pts), 1)))
     return pcd
 
 
-def build_scene_geometry(results: list[ICPResult], cad_pcd,
-                          background_pcd: o3d.geometry.PointCloud | None = None) -> o3d.geometry.PointCloud:
-    """회색 전체 배경 + 인스턴스별 검출 포인트(빨강) + 정합된 CAD(초록) + 픽포인트(노랑 구)를 하나로 합친다.
+def build_scene_components(
+    results: list[ICPResult], cad_pcd, background_pcd: o3d.geometry.PointCloud | None = None,
+) -> dict[str, o3d.geometry.PointCloud]:
+    """뷰어에서 각각 켜고 끌 수 있도록, 레이어를 하나로 합치지 않고 이름별로 분리해서 반환한다.
+
+    반환 딕셔너리 키가 곧 뷰어의 체크박스 이름이 된다 (icp_viewer.py 참고).
     시각화는 [1]의 가시면 서브셋이 아니라 항상 CAD 전체(cad_pcd)를 T로 변환해서 보여준다
-    (정합 계산에만 가시면 서브셋을 쓰고, 눈으로 확인할 땐 CAD 전체가 자연스럽다)."""
-    combined = o3d.geometry.PointCloud()
+    (정합 계산에만 가시면 서브셋을 쓰고, 눈으로 확인할 땐 CAD 전체가 자연스럽다).
+    """
+    components: dict[str, o3d.geometry.PointCloud] = {}
+
     if background_pcd is not None and len(background_pcd.points) > 0:
-        combined += background_pcd
+        components["Background (Height Colormap)"] = background_pcd
+
+    raw_mask_merged = o3d.geometry.PointCloud()
+    instance_merged = o3d.geometry.PointCloud()
+    cad_merged = o3d.geometry.PointCloud()
+    pick_merged = o3d.geometry.PointCloud()
+    failed_merged = o3d.geometry.PointCloud()
 
     for r in results:
-        if not r.ok or r.scene_pcd is None or r.T is None:
+        if not r.ok:
+            # 2026-07 추가: ICP가 실패해도 2D에서는 분명히 검출된 영역이다.
+            # 이 영역이 배경(exclude_mask로 이미 빠짐)에도, 성공 인스턴스
+            # 레이어에도 안 들어가면 뷰어에서 그 자리가 통째로 사라져 보인다.
+            # raw_scene_pcd(없으면 scene_pcd)를 별도 색으로 채택해서 최소한
+            # "여기 뭔가 검출은 됐다"는 걸 보여준다.
+            fail_source = r.raw_scene_pcd if r.raw_scene_pcd is not None else r.scene_pcd
+            if fail_source is not None and len(fail_source.points) > 0:
+                fv = copy.deepcopy(fail_source)
+                fv.colors = o3d.utility.Vector3dVector(np.tile(_FAILED_COLOR, (len(fv.points), 1)))
+                failed_merged += fv
             continue
+
+        if r.scene_pcd is None or r.T is None:
+            continue
+
+        if r.raw_scene_pcd is not None and len(r.raw_scene_pcd.points) > 0:
+            rv = copy.deepcopy(r.raw_scene_pcd)
+            rv.colors = o3d.utility.Vector3dVector(np.tile(_RAW_MASK_COLOR, (len(rv.points), 1)))
+            raw_mask_merged += rv
+
         sv = copy.deepcopy(r.scene_pcd)
         sv.colors = o3d.utility.Vector3dVector(np.tile(_INSTANCE_COLOR, (len(sv.points), 1)))
+        instance_merged += sv
 
         cv = copy.deepcopy(cad_pcd)
         cv.transform(r.T)
         cv.colors = o3d.utility.Vector3dVector(np.tile(_CAD_COLOR, (len(cv.points), 1)))
+        cad_merged += cv
 
         sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.006)
         sphere.translate(np.array(r.pick_point_mm) / 1000.0)
         sphere.paint_uniform_color(_PICK_COLOR.tolist())
-        sphere_pcd = sphere.sample_points_uniformly(400)
+        pick_merged += sphere.sample_points_uniformly(400)
 
-        combined += sv + cv + sphere_pcd
+    if len(failed_merged.points) > 0:
+        components["Failed ICP Instances"] = failed_merged
+    if len(raw_mask_merged.points) > 0:
+        components["RTMDet Detection Mask (Before Outlier Removal)"] = raw_mask_merged
+    if len(instance_merged.points) > 0:
+        components["ICP Instance (After Outlier Removal)"] = instance_merged
+    if len(cad_merged.points) > 0:
+        components["CAD Registration Result"] = cad_merged
+    if len(pick_merged.points) > 0:
+        components["Pick Point"] = pick_merged
+
+    return components
+
+
+def build_scene_geometry(results: list[ICPResult], cad_pcd,
+                          background_pcd: o3d.geometry.PointCloud | None = None) -> o3d.geometry.PointCloud:
+    """(하위호환용) build_scene_components()의 레이어를 전부 하나로 합쳐서 반환.
+    체크박스로 레이어별 토글이 필요하면 build_scene_components()를 직접 쓸 것."""
+    combined = o3d.geometry.PointCloud()
+    for pcd in build_scene_components(results, cad_pcd, background_pcd).values():
+        combined += pcd
     return combined

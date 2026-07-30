@@ -8,7 +8,7 @@ ICPWorkbenchTab에 있고, 이 파일은 "프레임을 어떻게 얻는지"(카�
 
 포인트클라우드 품질 개선: src.camera.create_camera()의 다중 프레임 평균화
 (configs/camera_config_helios.yaml / camera_config_femto.yaml의 `averaging`
-섹션)를 그대로 재사용한다. num_frames만 이 탭에서 조절 가능하게 노출했다.
+섹션)를 그대로 재사용한다. num_frames/min_valid_ratio를 이 탭에서 조절 가능하게 노출했다.
 
 주의 (알려진 제약):
     촬영(cam.capture())은 이 탭 안에서 동기적으로 실행된다 - 즉 촬영 중에는
@@ -27,7 +27,7 @@ import numpy as np
 import yaml
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QComboBox, QSpinBox, QListWidget, QListWidgetItem, QMessageBox,
+    QComboBox, QSpinBox, QDoubleSpinBox, QListWidget, QListWidgetItem, QMessageBox,
 )
 
 from app.core.paths import PROJECT_ROOT, DEFAULT_DATASET_ROOT
@@ -38,6 +38,7 @@ CAMERA_CONFIG_PATHS = {
     "femto_bolt": PROJECT_ROOT / "configs" / "camera_config_femto.yaml",
 }
 DEFAULT_AVERAGING_FRAMES = 8  # 1이면 평균화 없이 기존과 동일 (품질 개선 원하면 5~10 권장)
+DEFAULT_MIN_VALID_RATIO = 0.6  # config yaml 기본값과 동일 - 이 탭에서 override 가능
 
 
 class LiveCaptureICPTab(ICPWorkbenchTab):
@@ -64,6 +65,27 @@ class LiveCaptureICPTab(ICPWorkbenchTab):
         self.spin_avg_frames.setValue(DEFAULT_AVERAGING_FRAMES)
         avg_row.addWidget(self.spin_avg_frames)
         layout.addLayout(avg_row)
+
+        # 2026-07 추가: min_valid_ratio도 UI에서 조절 가능하게 노출.
+        # "매 프레임 랜덤 드롭아웃으로 생긴 구멍"을 다중 프레임으로 메우는
+        # 핵심 파라미터라 실험적으로 자주 바꿔볼 값이라 판단했다 (num_frames
+        # 옆에 나란히 둠). 낮출수록 커버리지↑, 노이즈 유입 위험도 같이↑.
+        ratio_row = QHBoxLayout()
+        ratio_row.addWidget(QLabel("min_valid_ratio"))
+        self.spin_min_valid_ratio = QDoubleSpinBox()
+        self.spin_min_valid_ratio.setRange(0.05, 1.0)
+        self.spin_min_valid_ratio.setSingleStep(0.05)
+        self.spin_min_valid_ratio.setDecimals(2)
+        self.spin_min_valid_ratio.setValue(DEFAULT_MIN_VALID_RATIO)
+        ratio_row.addWidget(self.spin_min_valid_ratio)
+        layout.addLayout(ratio_row)
+        ratio_hint = QLabel("픽셀이 최종 유효로 인정되려면 N프레임 중 최소 이 비율 이상에서\n"
+                             "유효해야 함. 낮출수록 커버리지(빈틈 메움)는 늘지만 노이즈 낀\n"
+                             "픽셀도 더 받아들이게 됨 - config yaml 기본값(0.6)을 이 탭에서만\n"
+                             "실험적으로 override.")
+        ratio_hint.setStyleSheet("color: #888; font-size: 10px;")
+        ratio_hint.setWordWrap(True)
+        layout.addWidget(ratio_hint)
         avg_hint = QLabel("1=평균화 없음(기존과 동일). 5~10부터 depth 노이즈\n"
                            "감소가 체감됨 - 커질수록 촬영 시간도 비례해서 늘어남.")
         avg_hint.setStyleSheet("color: #888; font-size: 10px;")
@@ -101,16 +123,18 @@ class LiveCaptureICPTab(ICPWorkbenchTab):
         with open(config_path, "r", encoding="utf-8") as f:
             full_cfg = yaml.safe_load(f)
         cam_cfg = dict(full_cfg["camera"])
-        # 이 탭의 스핀박스 값으로 averaging.num_frames만 override -
+        # 이 탭의 스핀박스 값으로 averaging.num_frames/min_valid_ratio만 override -
         # 나머지(노출시간, 동작거리 모드 등)는 config 파일 값 그대로 사용.
         avg_cfg = dict(cam_cfg.get("averaging") or {})
         avg_cfg["num_frames"] = self.spin_avg_frames.value()
+        avg_cfg["min_valid_ratio"] = self.spin_min_valid_ratio.value()
         cam_cfg["averaging"] = avg_cfg
 
         self.btn_capture.setEnabled(False)
         self.log_message.emit(
             f"[{self.LOG_PREFIX}] 촬영 시작: {camera_type} "
-            f"(averaging={avg_cfg['num_frames']}프레임, method={avg_cfg.get('method', 'median')})"
+            f"(averaging={avg_cfg['num_frames']}프레임, method={avg_cfg.get('method', 'median')}, "
+            f"min_valid_ratio={avg_cfg['min_valid_ratio']:.2f})"
         )
         try:
             from src.camera import create_camera
