@@ -96,21 +96,30 @@ class AveragingCamera(CameraBase):
         valid_count = valid_stack.sum(axis=0)  # (H,W) - 이 픽셀이 유효했던 프레임 수
 
         with np.errstate(invalid="ignore"), warnings.catch_warnings():
-            # 모든 프레임에서 무효였던 픽셀은 전부 NaN이라 nanmedian/nanmean이
+            # 모든 프레임에서 무효였던 픽셀은 전부 NaN이라 nanmedian/nanmean/nanstd가
             # "All-NaN slice" 경고를 던진다 - 결과가 NaN인 게 맞는 동작이라
             # (final_valid에서 어차피 걸러짐) 경고만 조용히 무시한다.
             warnings.filterwarnings("ignore", message="All-NaN slice encountered")
             warnings.filterwarnings("ignore", message="Mean of empty slice")
+            warnings.filterwarnings("ignore", message="Degrees of freedom <= 0")
             if self.method == "median":
                 agg = np.nanmedian(pts_masked, axis=0)
             else:
                 agg = np.nanmean(pts_masked, axis=0)
+            # 2026-07 추가: 픽셀별 표준편차. Monte Carlo 확률적 샘플링
+            # (icp_runner.extract_instance_points_probabilistic)에서 이
+            # 값을 Normal(mean, std)의 std로 그대로 쓴다. ddof=0(모집단
+            # 표준편차) - 표본이 N=num_frames로 작을 때(예: 5~8)
+            # ddof=1(표본표준편차)이 이론적으로는 더 정확하지만, 여기선
+            # "관측된 산포"를 그대로 반영하는 목적이라 큰 차이는 없다.
+            pixel_std = np.nanstd(pts_masked, axis=0)
 
         min_count = max(1, int(np.ceil(self.num_frames * self.min_valid_ratio)))
         final_valid = valid_count >= min_count
 
         agg = np.where(final_valid[..., None], agg, np.nan).astype(np.float32)
         points = agg[final_valid].astype(np.float32)
+        pixel_std = np.where(final_valid[..., None], pixel_std, np.nan).astype(np.float32)
 
         # intensity/confidence는 depth만큼 노이즈에 민감하지 않지만,
         # 어차피 같은 N프레임을 찍은 김에 평균내서 약간의 노이즈 감소 효과를 더한다.
@@ -142,4 +151,5 @@ class AveragingCamera(CameraBase):
             valid_mask=final_valid,
             confidence=confidence,
             color_rgb=color_rgb,
+            points_std=pixel_std,
         )

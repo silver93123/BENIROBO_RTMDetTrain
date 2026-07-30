@@ -62,6 +62,7 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 import open3d as o3d
+from scipy.ndimage import distance_transform_edt
 
 from app.core.registration import PoseEstimator, create_registrator
 
@@ -155,6 +156,19 @@ class ICPParams:
     roll_limit_deg: float = 45.0
     pitch_limit_deg: float = 45.0
     yaw_limit_deg: float = 45.0
+
+    # 2026-07 추가: 포인트클라우드 업샘플링. 카메라 자체 해상도가 낮아
+    # 인스턴스당 포인트 수가 부족한 상황을 보완하기 위해, extract_instance_points_mm()이
+    # 마스크 bbox 영역만 잘라내 격자 보간으로 factor배 밀도를 높인 뒤 포인트를
+    # 뽑는다. 1이면 기존과 완전히 동일(끔, 기본값).
+    # 주의: 실측 정보를 늘리는 게 아니라 기존 depth 값 사이를 보간하는 것 -
+    # 원본 depth 정밀도 이상의 새 정보를 만들어내지는 않는다. ICP 대응점
+    # 밀도를 늘려 정합 안정성을 높이는 용도로만 쓸 것.
+    pc_upsample_factor: int = 1
+    # "linear"(기본, 안전) | "cubic"(더 매끈하지만 depth 불연속 경계에서
+    # 오버슈트로 인한 flying-pixel성 아티팩트 위험이 있음 - mask_erode_px를
+    # 늘려서 완충하는 걸 권장).
+    pc_upsample_method: str = "linear"
 
     @property
     def roll_range(self) -> tuple[float, float]:
@@ -406,29 +420,153 @@ def _erode_mask(mask: np.ndarray, px: int) -> np.ndarray:
     return cv2.erode(mask.astype(np.uint8), kernel, iterations=1).astype(bool)
 
 
+def upsample_organized_patch(
+    pcd_patch_mm: np.ndarray, valid_patch: np.ndarray,
+    factor: int, method: str = "linear",
+) -> tuple[np.ndarray, np.ndarray]:
+    """(h,w,3) mm 격자 패치 하나(보통 인스턴스 bbox 크기)를 factor배 업샘플링.
+
+    XYZ 세 채널은 method(linear/cubic)로 보간하고, valid_mask는 항상
+    nearest로 리사이즈해서 원래 유효/무효 경계를 그대로 유지한다 - 보간
+    방식과 무관하게 새 좌표의 유효성은 "원래 그 위치가 유효했는가"로만
+    결정되게 하기 위함.
+
+    보간 커널이 무효(NaN) 픽셀을 만나면 인접 유효값까지 오염되므로, 무효
+    픽셀은 거리변환 기반으로 가장 가까운 유효 픽셀 값을 임시로 채운 뒤
+    보간한다. 이 패치는 이미 마스크 bbox로 잘려있다는 전제라(호출부인
+    extract_instance_points_mm 참고), 다른 물체/배경과 경계를 넘어 값이
+    섞일 위험은 없다 - 어차피 이 패치 안은 한 인스턴스의 마스크 영역뿐.
+    """
+    h, w = valid_patch.shape
+    new_w, new_h = w * factor, h * factor
+
+    if not valid_patch.any():
+        empty = np.full((new_h, new_w, 3), np.nan, dtype=np.float64)
+        return empty, np.zeros((new_h, new_w), dtype=bool)
+
+    interp = cv2.INTER_LINEAR if method == "linear" else cv2.INTER_CUBIC
+
+    filled = pcd_patch_mm.astype(np.float64).copy()
+    invalid = ~valid_patch
+    if invalid.any():
+        _, idx = distance_transform_edt(invalid, return_distances=True, return_indices=True)
+        for c in range(3):
+            filled[:, :, c] = pcd_patch_mm[:, :, c][tuple(idx)]
+
+    upsampled = cv2.resize(filled.astype(np.float32), (new_w, new_h), interpolation=interp).astype(np.float64)
+    valid_up = cv2.resize(valid_patch.astype(np.uint8), (new_w, new_h),
+                           interpolation=cv2.INTER_NEAREST).astype(bool)
+    return upsampled, valid_up
+
+
+def _extract_upsampled_points(
+    mask_arr: np.ndarray, pcd_organized: np.ndarray, vmask: np.ndarray,
+    factor: int, method: str,
+) -> np.ndarray:
+    ys, xs = np.where(mask_arr)
+    if len(ys) == 0:
+        return np.empty((0, 3), dtype=np.float64)
+
+    y0, y1 = int(ys.min()), int(ys.max()) + 1
+    x0, x1 = int(xs.min()), int(xs.max()) + 1
+
+    patch_pcd = pcd_organized[y0:y1, x0:x1]
+    patch_valid = (mask_arr & vmask)[y0:y1, x0:x1]
+
+    up_pcd, up_valid = upsample_organized_patch(patch_pcd, patch_valid, factor, method)
+
+    pts = up_pcd[up_valid]
+    return pts[np.isfinite(pts).all(axis=1)]
+
+
 def extract_instance_points_mm(mask: np.ndarray, pcd_organized: np.ndarray, valid_mask: np.ndarray,
-                                erode_px: int = 0, min_points: int = MIN_POINTS_PER_INSTANCE) -> np.ndarray:
+                                erode_px: int = 0, min_points: int = MIN_POINTS_PER_INSTANCE,
+                                upsample_factor: int = 1, upsample_method: str = "linear") -> np.ndarray:
     """(H,W) bool 검출 마스크와 세션의 pointcloud_organized(H,W,3 mm)/valid_mask를
     조합해서 이 인스턴스에 해당하는 3D 포인트(mm, N x 3)를 뽑는다.
 
     [4] erode_px > 0 이면 depth flying pixel(경계 노이즈) 완충을 위해 마스크를
     먼저 침식한다. 침식 후 포인트 수가 min_points 밑으로 떨어지면 침식 없는
-    원본 마스크로 자동 폴백한다 (작은 부품/원거리 촬영 시 안전장치)."""
+    원본 마스크로 자동 폴백한다 (작은 부품/원거리 촬영 시 안전장치).
+
+    upsample_factor > 1이면 위에서 정해진 마스크 영역의 bbox만 잘라내
+    격자 보간으로 factor배 밀도를 높인 뒤 포인트를 뽑는다 (ICPParams.
+    pc_upsample_factor 참고 - 카메라 자체 해상도가 낮아 포인트가 부족한
+    상황 보완용). 업샘플링 후에도 min_points 밑이면 침식 없는 원본
+    마스크로 재시도한다."""
     m = mask.astype(bool)
     vmask = valid_mask.astype(bool)
 
+    def _select(mask_arr: np.ndarray) -> np.ndarray:
+        combined = mask_arr & vmask
+        pts = pcd_organized[combined].astype(np.float64)
+        return pts[np.isfinite(pts).all(axis=1)]
+
+    final_mask = m
     if erode_px > 0:
         eroded = _erode_mask(m, erode_px)
-        combined = eroded & vmask
-        pts = pcd_organized[combined].astype(np.float64)
-        pts = pts[np.isfinite(pts).all(axis=1)]
-        if len(pts) >= min_points:
-            return pts
-        # 폴백: 침식 없이 원본 마스크로 재시도
+        if len(_select(eroded)) >= min_points:
+            final_mask = eroded
+        # else: 포인트 부족 -> 원본 마스크(m) 유지 (기존 폴백 그대로)
 
-    combined = m & vmask
-    pts = pcd_organized[combined].astype(np.float64)
-    return pts[np.isfinite(pts).all(axis=1)]
+    if upsample_factor <= 1:
+        return _select(final_mask)
+
+    pts = _extract_upsampled_points(final_mask, pcd_organized, vmask, upsample_factor, upsample_method)
+    if len(pts) >= min_points or final_mask is m:
+        return pts
+    # 업샘플링 후에도 부족 + 아직 원본 마스크로 안 돌아간 상태 -> 원본으로 재시도
+    return _extract_upsampled_points(m, pcd_organized, vmask, upsample_factor, upsample_method)
+
+
+def extract_instance_points_probabilistic(
+    mask: np.ndarray, pcd_mean: np.ndarray, pcd_std: np.ndarray | None, valid_mask: np.ndarray,
+    erode_px: int = 0, samples_per_point: int = 4, min_points: int = MIN_POINTS_PER_INSTANCE,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """픽셀별 Normal(mean, std)에서 Monte Carlo 재샘플링해 포인트 개수를 늘린다.
+
+    linear/cubic 격자 보간(upsample_organized_patch)과의 차이: 보간은
+    존재한 적 없는 매끈한 중간값을 만들어내지만, 이건 실제로 관측된
+    노이즈 분포(다중 프레임 촬영에서 계산된 픽셀별 표준편차)에서 값을
+    다시 뽑는 것이라 노이즈를 정직하게 반영한다 - 개별 포인트의 정밀도가
+    좋아지는 건 아니고, ICP 대응점/FPFH 특징 계산에 쓸 포인트 개수만 늘어난다.
+
+    pcd_std가 None이면(단일 프레임 촬영이거나 세션에서 로드해서 표준편차
+    정보가 없는 경우) 확률적 샘플링이 성립하지 않으므로
+    extract_instance_points_mm으로 그대로 폴백한다 (포인트 개수는 안 늘어남,
+    조용히 실패하지 않고 명확히 원래 동작으로 되돌아감).
+    """
+    if pcd_std is None:
+        return extract_instance_points_mm(mask, pcd_mean, valid_mask, erode_px=erode_px, min_points=min_points)
+
+    m = mask.astype(bool)
+    vmask = valid_mask.astype(bool)
+
+    def _select(mask_arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        combined = mask_arr & vmask
+        means = pcd_mean[combined].astype(np.float64)
+        stds = pcd_std[combined].astype(np.float64)
+        finite = np.isfinite(means).all(axis=1) & np.isfinite(stds).all(axis=1)
+        return means[finite], stds[finite]
+
+    final_mask = m
+    if erode_px > 0:
+        eroded = _erode_mask(m, erode_px)
+        means_eroded, _ = _select(eroded)
+        if len(means_eroded) >= min_points:
+            final_mask = eroded
+
+    means, stds = _select(final_mask)
+    if len(means) == 0:
+        return np.empty((0, 3), dtype=np.float64)
+
+    rng = rng if rng is not None else np.random.default_rng()
+    stds_safe = np.maximum(stds, 0.0)
+    reps_mean = np.repeat(means, samples_per_point, axis=0)
+    reps_std = np.repeat(stds_safe, samples_per_point, axis=0)
+    noise = rng.normal(0.0, 1.0, size=reps_mean.shape) * reps_std
+    return reps_mean + noise
 
 
 # =============================================================================

@@ -47,9 +47,16 @@ class ICPPipelineTab(QWidget):
         """기본 구현 - 대부분의 파이프라인은 오버라이드 안 해도 된다."""
         results: List[ICPResult] = []
         for i, det in enumerate(detections):
-            pts_mm = icp_runner.extract_instance_points_mm(
-                det.mask, ctx.pcd_organized_mm, ctx.valid_mask, erode_px=params.mask_erode_px
-            )
+            if params.pc_upsample_method == "probabilistic" and params.pc_upsample_factor > 1:
+                pts_mm = icp_runner.extract_instance_points_probabilistic(
+                    det.mask, ctx.pcd_organized_mm, ctx.pcd_std_mm, ctx.valid_mask,
+                    erode_px=params.mask_erode_px, samples_per_point=params.pc_upsample_factor,
+                )
+            else:
+                pts_mm = icp_runner.extract_instance_points_mm(
+                    det.mask, ctx.pcd_organized_mm, ctx.valid_mask, erode_px=params.mask_erode_px,
+                    upsample_factor=params.pc_upsample_factor, upsample_method=params.pc_upsample_method,
+                )
             result = icp_runner.run_icp_for_instance(
                 i, pts_mm, ctx.cad_pcd, ctx.cad_visible_normal, ctx.cad_visible_flipped,
                 params=params, T_init_override=getattr(det, "initial_pose", None),

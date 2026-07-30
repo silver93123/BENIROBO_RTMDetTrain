@@ -41,6 +41,14 @@ class FrameData:
             (지원하는 카메라에서, 옵션으로 켰을 때만). 기본 파이프라인
             (intensity/points_organized)과는 독립적인 부가 정보이므로
             None이어도 나머지 필드는 항상 정상 사용 가능해야 한다.
+        points_std:
+            (H, W, 3) float32 또는 None. 다중 프레임 촬영(AveragingCamera,
+            num_frames>1)에서만 채워지는 픽셀별 XYZ 표준편차 - 단일 프레임
+            촬영이거나 num_frames=1이면 항상 None이다. 이 값이 있어야
+            icp_runner.extract_instance_points_probabilistic()의 Monte Carlo
+            확률적 샘플링(픽셀별 Normal(mean, std)에서 재샘플링해 점 개수를
+            늘리는 방식)이 가능하다 - None이면 그 함수는 자동으로 일반
+            추출로 폴백한다.
     """
     intensity: np.ndarray
     points: np.ndarray
@@ -48,6 +56,7 @@ class FrameData:
     valid_mask: np.ndarray
     confidence: Optional[np.ndarray] = None
     color_rgb: Optional[np.ndarray] = None
+    points_std: Optional[np.ndarray] = None
 
     def __post_init__(self) -> None:
         # 형상 일관성 검증 - 디버깅 시 빠른 실패를 위해
@@ -70,6 +79,11 @@ class FrameData:
             raise ValueError(
                 f"color_rgb 형상 불일치: ({h},{w},3) 기대, "
                 f"실제={self.color_rgb.shape}"
+            )
+        if self.points_std is not None and self.points_std.shape != (h, w, 3):
+            raise ValueError(
+                f"points_std 형상 불일치: ({h},{w},3) 기대, "
+                f"실제={self.points_std.shape}"
             )
 
     @property

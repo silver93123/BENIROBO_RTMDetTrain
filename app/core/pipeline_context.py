@@ -37,3 +37,10 @@ class FrameContext:
     checkpoint_path: str = ""
     config_path: str = ""
     score_threshold: float = 0.3
+
+    # 2026-07 추가: Monte Carlo 확률적 샘플링용 픽셀별 표준편차 (H,W,3) mm.
+    # 다중 프레임 촬영(AveragingCamera)에서만 채워짐 - 세션에서 로드한
+    # 프레임이나 num_frames=1 촬영은 항상 None. None이면
+    # icp_runner.extract_instance_points_probabilistic()이 자동으로
+    # 일반 추출(그리드 보간/원본)로 폴백한다.
+    pcd_std_mm: Optional[np.ndarray] = None

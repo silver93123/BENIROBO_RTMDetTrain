@@ -4,7 +4,7 @@
 워크플로우(모델 학습: RTMDet vs RotHead - 스크립트도, 로그 포맷도, 지표도
 다름)만 하위 트리 항목으로 분리하고, 한 파이프라인 안에서 교체 가능한
 파라미터(ICP 정합 테스트의 detector/registration 알고리즘)는 여전히 탭
-콘텐츠 내부의 콤보박스/내부 탭으로 남겨둔다 - app/tabs/icp_test_tab.py
+콘텐츠 내부의 콤보박스/내부 탭으로 남겨둔다 - app/tabs/icp_workbench_base.py
 참고. 이 구분 기준은 대화로 정리된 것: "완전히 다른 파이프라인"만 트리로
 쪼갠다.
 
@@ -23,7 +23,8 @@ from PyQt6.QtCore import Qt
 from app.tabs.data_collection_tab import DataCollectionTab
 from app.tabs.data_session_tab import DataSessionTab
 from app.tabs.inference_test_tab import InferenceTestTab
-from app.tabs.icp_test_tab import ICPTestTab
+from app.tabs.session_icp_tab import SessionICPTab
+from app.tabs.live_capture_icp_tab import LiveCaptureICPTab
 from app.tabs.training_pipelines import AVAILABLE_TRAINING_PIPELINES
 from app.widgets.log_console import LogConsole
 
@@ -83,8 +84,11 @@ class MainWindow(QMainWindow):
         self.inference_tab = InferenceTestTab()
         self._add_leaf("3. 오프라인 검출 테스트", self.inference_tab)
 
-        self.icp_tab = ICPTestTab()
+        self.icp_tab = SessionICPTab()
         self._add_leaf("4. ICP 정합 테스트", self.icp_tab)
+
+        self.icp_tcp_tab = LiveCaptureICPTab()
+        self._add_leaf("5. ICP 정합테스트(TCP)", self.icp_tcp_tab)
 
         self.nav_tree.currentItemChanged.connect(self._on_nav_changed)
 
@@ -98,12 +102,15 @@ class MainWindow(QMainWindow):
             tab.log_message.connect(self.log_console.append_log)
         self.inference_tab.log_message.connect(self.log_console.append_log)
         self.icp_tab.log_message.connect(self.log_console.append_log)
+        self.icp_tcp_tab.log_message.connect(self.log_console.append_log)
 
-        # 데이터 수집 탭에서 수집이 끝나면 -> RTMDet 학습 탭 / ICP 탭에 바로 연동
+        # 데이터 수집 탭에서 수집이 끝나면 -> RTMDet 학습 탭 / ICP 탭(세션 기반)에 바로 연동.
+        # LiveCaptureICPTab(탭5)은 세션이 아니라 카메라로 즉시 촬영하는 개념이라
+        # set_session_path 연동 대상이 아니다.
         self.collection_tab.dataset_captured.connect(self.rtmdet_training_tab.set_session_path)
         self.collection_tab.dataset_captured.connect(self.icp_tab.set_session_path)
 
-        # 데이터 세션 탭에서 세션 선택 -> RTMDet 학습 탭 / ICP 탭에 참고용으로 전달
+        # 데이터 세션 탭에서 세션 선택 -> RTMDet 학습 탭 / ICP 탭(세션 기반)에 참고용으로 전달
         self.data_tab.session_selected.connect(self.rtmdet_training_tab.set_session_path)
         self.data_tab.session_selected.connect(self.icp_tab.set_session_path)
 
