@@ -153,9 +153,9 @@ class ICPParams:
     init_yaw_deg: float = 90.0
 
     # 회전 구속 조건 (deg). 대칭 범위(±roll_limit_deg 등)로 다룬다.
-    roll_limit_deg: float = 45.0
-    pitch_limit_deg: float = 45.0
-    yaw_limit_deg: float = 45.0
+    roll_limit_deg: float = 180.0
+    pitch_limit_deg: float = 180.0
+    yaw_limit_deg: float = 180.0
 
     # 2026-07 추가: 포인트클라우드 업샘플링. 카메라 자체 해상도가 낮아
     # 인스턴스당 포인트 수가 부족한 상황을 보완하기 위해, extract_instance_points_mm()이
