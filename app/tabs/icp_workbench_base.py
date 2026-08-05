@@ -114,9 +114,29 @@ class ICPWorkbenchTab(QWidget):
         left = QVBoxLayout()
         left_widget = QWidget()
         left_widget.setLayout(left)
-        left_widget.setFixedWidth(230)
+        left_widget.setFixedWidth(340)
 
         left.addWidget(self._build_acquisition_panel())
+
+        left.addWidget(QLabel("체크포인트"))
+        self.checkpoint_edit = QLineEdit()
+        left.addWidget(self.checkpoint_edit)
+        ckpt_btn_row = QHBoxLayout()
+        btn_browse_ckpt = QPushButton("선택")
+        btn_browse_ckpt.clicked.connect(self._on_browse_checkpoint)
+        ckpt_btn_row.addWidget(btn_browse_ckpt)
+        ckpt_btn_row.addStretch(1)
+        left.addLayout(ckpt_btn_row)
+
+        left.addWidget(QLabel("config"))
+        self.config_edit = QLineEdit()
+        left.addWidget(self.config_edit)
+        cfg_btn_row = QHBoxLayout()
+        btn_browse_cfg = QPushButton("선택")
+        btn_browse_cfg.clicked.connect(self._on_browse_config)
+        cfg_btn_row.addWidget(btn_browse_cfg)
+        cfg_btn_row.addStretch(1)
+        left.addLayout(cfg_btn_row)
 
         left.addWidget(QLabel("CAD 모델"))
         cad_row = QHBoxLayout()
@@ -138,24 +158,6 @@ class ICPWorkbenchTab(QWidget):
 
         # ------------------------------------------------------- 중앙
         center = QVBoxLayout()
-
-        ckpt_row = QHBoxLayout()
-        ckpt_row.addWidget(QLabel("체크포인트"))
-        self.checkpoint_edit = QLineEdit()
-        ckpt_row.addWidget(self.checkpoint_edit, stretch=1)
-        btn_browse_ckpt = QPushButton("선택")
-        btn_browse_ckpt.clicked.connect(self._on_browse_checkpoint)
-        ckpt_row.addWidget(btn_browse_ckpt)
-        center.addLayout(ckpt_row)
-
-        cfg_row = QHBoxLayout()
-        cfg_row.addWidget(QLabel("config"))
-        self.config_edit = QLineEdit()
-        cfg_row.addWidget(self.config_edit, stretch=1)
-        btn_browse_cfg = QPushButton("선택")
-        btn_browse_cfg.clicked.connect(self._on_browse_config)
-        cfg_row.addWidget(btn_browse_cfg)
-        center.addLayout(cfg_row)
 
         self.pipeline_tabs = QTabWidget()
         for name, cls in AVAILABLE_ICP_PIPELINES:
@@ -199,6 +201,7 @@ class ICPWorkbenchTab(QWidget):
         params_scroll.setWidget(params_container)
         params_scroll.setFrameShape(QFrame.Shape.NoFrame)
         params_scroll.setMaximumHeight(320)
+        self.params_scroll = params_scroll
         params_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         center.addWidget(params_scroll)
 
@@ -212,7 +215,8 @@ class ICPWorkbenchTab(QWidget):
         right_widget.setLayout(right)
         right_widget.setFixedWidth(280)
 
-        right.addWidget(QLabel("ICP 결과"))
+        self.result_title_label = QLabel("ICP 결과")
+        right.addWidget(self.result_title_label)
         self.result_scroll = QScrollArea()
         self.result_scroll.setWidgetResizable(True)
         self.result_container = QWidget()
@@ -439,20 +443,24 @@ class ICPWorkbenchTab(QWidget):
             return
         cfg_path = str(DEFAULT_CONFIG_PATH)
         self.config_edit.setText(cfg_path)
+        self.config_edit.setToolTip(cfg_path)
         best = find_latest_best_checkpoint(cfg_path)
         if best:
             self.checkpoint_edit.setText(best)
+            self.checkpoint_edit.setToolTip(best)
             self.log_message.emit(f"[{self.LOG_PREFIX}] 최신 best 체크포인트 자동 설정: {best}")
 
     def _on_browse_checkpoint(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "체크포인트 선택", "", "PyTorch (*.pth)")
         if path:
             self.checkpoint_edit.setText(path)
+            self.checkpoint_edit.setToolTip(path)
 
     def _on_browse_config(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "config 파일 선택", "", "Python (*.py)")
         if path:
             self.config_edit.setText(path)
+            self.config_edit.setToolTip(path)
 
     # ------------------------------------------------------------ CAD
     def _refresh_cad_list(self) -> None:

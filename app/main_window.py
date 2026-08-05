@@ -26,6 +26,8 @@ from app.tabs.inference_test_tab import InferenceTestTab
 from app.tabs.session_icp_tab import SessionICPTab
 from app.tabs.live_capture_icp_tab import LiveCaptureICPTab
 from app.tabs.live_label_generation_tab import LiveLabelGenerationTab
+from app.tabs.rothead_only_icp_tab import RotHeadOnlyICPTab
+from app.tabs.manual_labeling_tab import ManualLabelingTab
 from app.tabs.training_pipelines import AVAILABLE_TRAINING_PIPELINES
 from app.widgets.log_console import LogConsole
 
@@ -94,6 +96,12 @@ class MainWindow(QMainWindow):
         self.label_gen_tab = LiveLabelGenerationTab()
         self._add_leaf("6. 회전 라벨 생성", self.label_gen_tab)
 
+        self.rothead_test_tab = RotHeadOnlyICPTab()
+        self._add_leaf("7. RotHead 정합테스트", self.rothead_test_tab)
+
+        self.manual_labeling_tab = ManualLabelingTab()
+        self._add_leaf("8. 수동 라벨링", self.manual_labeling_tab)
+
         self.nav_tree.currentItemChanged.connect(self._on_nav_changed)
 
         self.log_console = LogConsole()
@@ -108,6 +116,8 @@ class MainWindow(QMainWindow):
         self.icp_tab.log_message.connect(self.log_console.append_log)
         self.icp_tcp_tab.log_message.connect(self.log_console.append_log)
         self.label_gen_tab.log_message.connect(self.log_console.append_log)
+        self.rothead_test_tab.log_message.connect(self.log_console.append_log)
+        self.manual_labeling_tab.log_message.connect(self.log_console.append_log)
 
         # 데이터 수집 탭에서 수집이 끝나면 -> RTMDet 학습 탭 / ICP 탭(세션 기반)에 바로 연동.
         # LiveCaptureICPTab(탭5)은 세션이 아니라 카메라로 즉시 촬영하는 개념이라

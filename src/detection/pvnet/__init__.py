@@ -34,6 +34,7 @@ from .keypoints import farthest_point_sampling
 from .model import PVNetHead, segmentation_loss, vertex_smooth_l1_loss
 from .pipeline import estimate_pose_from_crop
 from .pnp import PnPResult, solve_uncertainty_pnp
+from .symmetry import canonicalize_axial_rotation
 from .voting import KeypointVote, vote_keypoints
 
 __all__ = [
@@ -44,6 +45,7 @@ __all__ = [
     "estimate_pose_from_crop",
     "PnPResult",
     "solve_uncertainty_pnp",
+    "canonicalize_axial_rotation",
     "KeypointVote",
     "vote_keypoints",
 ]
