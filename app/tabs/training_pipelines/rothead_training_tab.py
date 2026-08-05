@@ -32,7 +32,7 @@ from app.core.paths import PROJECT_ROOT
 from app.widgets.log_console import LogConsole
 
 # scripts/train_rotation_head.py의 SYMMETRY_GROUPS 키와 반드시 동기화할 것.
-SYMMETRY_GROUP_CHOICES = ["none", "z180"]
+SYMMETRY_GROUP_CHOICES = ["none", "z180", "cylindrical_x", "cylindrical_y", "cylindrical_z"]
 
 DEFAULT_EPOCHS = 50
 DEFAULT_BATCH_SIZE = 32
@@ -108,8 +108,11 @@ class RotHeadTrainingTab(QWidget):
         self.combo_symmetry = QComboBox()
         self.combo_symmetry.addItems(SYMMETRY_GROUP_CHOICES)
         sym_row.addWidget(self.combo_symmetry)
-        sym_hint = QLabel("이 부품 CAD가 회전 대칭이면(예: 양끝이 같은 막대형) z180 선택.\n"
-                           "잘못 고르면 학습이 대칭 방향에서 진동하며 수렴 안 될 수 있음.")
+        sym_hint = QLabel(
+            "양끝이 같은 막대형이면 z180. 볼트처럼 축 방향 연속 회전 대칭(원통형)이면\n"
+            "cylindrical_x/y/z 중 CAD의 긴 축과 일치하는 것 선택. 잘못 고르면 학습이\n"
+            "대칭 방향에서 진동하며 수렴 안 될 수 있음."
+        )
         sym_hint.setStyleSheet("color: #888; font-size: 10px;")
         sym_hint.setWordWrap(True)
         sym_row.addWidget(sym_hint, stretch=1)

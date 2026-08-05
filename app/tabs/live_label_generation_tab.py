@@ -25,6 +25,8 @@ ICP/FGR 파라미터, 3D 뷰어까지 전부 LiveCaptureICPTab -> ICPWorkbenchTa
 from __future__ import annotations
 
 import json
+import os
+import shutil
 from datetime import datetime
 
 import cv2
@@ -35,6 +37,7 @@ from app.core.paths import PROJECT_ROOT
 from app.tabs.live_capture_icp_tab import LiveCaptureICPTab
 
 DEFAULT_MASK_OUT_DIR = PROJECT_ROOT / "data" / "rotation_labels_masks"
+DEFAULT_IMAGE_OUT_DIR = PROJECT_ROOT / "data" / "rotation_labels_images"
 DEFAULT_LABELS_OUT = PROJECT_ROOT / "data" / "rotation_labels.json"
 DEFAULT_PREVIEW_DIR = PROJECT_ROOT / "data" / "rotation_labels_preview"
 DEFAULT_LABEL_FITNESS_MIN = 0.85  # ICP 파라미터 박스의 fitness threshold(보통 0.6~0.7)보다
@@ -102,16 +105,33 @@ class LiveLabelGenerationTab(LiveCaptureICPTab):
 
         threshold = self.spin_label_fitness_min.value()
         DEFAULT_MASK_OUT_DIR.mkdir(parents=True, exist_ok=True)
+        DEFAULT_IMAGE_OUT_DIR.mkdir(parents=True, exist_ok=True)
         DEFAULT_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
-        frame_bgr = None
-        if self._current_image_path:
-            gray = cv2.imread(self._current_image_path, cv2.IMREAD_GRAYSCALE)
-            if gray is not None:
-                frame_bgr = np.stack([gray, gray, gray], axis=-1)
+        # LiveCaptureICPTab이 촬영본을 저장하는 self._current_image_path는
+        # tempfile.gettempdir() 아래(/tmp/tcp_{label}.png) - 이번 실행 중 잠깐
+        # 쓰고 버리는 용도라 재부팅/tmp 정리 주기에 사라진다. 학습 라벨은 몇
+        # 주 뒤에도 유효해야 하므로, 저장 시점에 반드시 data/ 아래 영구 위치로
+        # 복사해두고 그 경로를 라벨에 적어야 한다 (예전엔 이 복사가 없어서
+        # 나중에 학습 돌릴 때 FileNotFoundError가 났었다).
+        if not self._current_image_path or not os.path.isfile(self._current_image_path):
+            QMessageBox.warning(
+                self, "알림",
+                f"촬영 이미지 파일을 찾을 수 없습니다: {self._current_image_path}\n"
+                "다시 촬영 후 검출/ICP를 새로 실행하세요.",
+            )
+            return
 
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         frame_tag = self._current_frame or "frame"
+
+        image_ext = os.path.splitext(self._current_image_path)[1] or ".png"
+        permanent_image_path = DEFAULT_IMAGE_OUT_DIR / f"{stamp}_{frame_tag}{image_ext}"
+        shutil.copy2(self._current_image_path, permanent_image_path)
+
+        gray = cv2.imread(str(permanent_image_path), cv2.IMREAD_GRAYSCALE)
+        frame_bgr = np.stack([gray, gray, gray], axis=-1) if gray is not None else None
+
         n_saved_this_frame = 0
         n_skipped = 0
 
@@ -125,7 +145,7 @@ class LiveLabelGenerationTab(LiveCaptureICPTab):
             np.save(mask_path, det.mask.astype(bool))
 
             self._saved_labels.append({
-                "image": self._current_image_path,
+                "image": str(permanent_image_path),
                 "mask": str(mask_path),
                 "bbox": [float(v) for v in det.bbox],
                 "rotation_matrix": result.T[:3, :3].tolist(),

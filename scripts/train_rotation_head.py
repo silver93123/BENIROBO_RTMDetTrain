@@ -55,10 +55,38 @@ DEFAULT_CHECKPOINT_INTERVAL = 10
 # 이 실행에서 학습할 부품의 대칭군. CAD 형상을 보고 판단해서 골라 넣을 것.
 # "none": 대칭 없음 (일반적인 비대칭 부품)
 # "z180": Z축 180도 회전 대칭 (예: 양끝이 똑같이 생긴 막대형 부품)
+# "cylindrical_x/y/z": 원통형(볼트 샤프트 등) 부품용. 실제로는 해당 축 주위
+#   연속 회전(SO(2))이 전부 대칭이지만, symmetry_aware_geodesic_loss가 이산
+#   리스트 중 최솟값을 취하는 구조라 촘촘한(10도 간격, 36개) 이산 근사로
+#   충분하다 - 이 정도 간격이면 gradient가 사실상 연속 대칭을 반영한다.
+#   볼트 머리(육각 등)의 60도 이산 대칭까지는 반영하지 않는데, depth 센서로
+#   그 정도 면 차이를 구분하는 게 현실적으로 불가능하고, 빈피킹 그립 목적상
+#   샤프트 축 방향만 맞으면 충분한 경우가 많아 의도적으로 더 단순화한 것이다.
 # 필요하면 여기에 새 그룹을 추가.
+def _cylindrical_symmetry_group(axis: str, num_steps: int = 36) -> list[np.ndarray]:
+    axis = axis.lower()
+    mats = []
+    for k in range(num_steps):
+        theta = 2 * np.pi * k / num_steps
+        c, s = np.cos(theta), np.sin(theta)
+        if axis == "x":
+            R = np.array([[1, 0, 0], [0, c, -s], [0, s, c]], dtype=np.float32)
+        elif axis == "y":
+            R = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]], dtype=np.float32)
+        elif axis == "z":
+            R = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]], dtype=np.float32)
+        else:
+            raise ValueError(f"지원하지 않는 축: '{axis}' (x/y/z만 가능)")
+        mats.append(R)
+    return mats
+
+
 SYMMETRY_GROUPS: dict[str, list[np.ndarray]] = {
     "none": [np.eye(3, dtype=np.float32)],
     "z180": [np.eye(3, dtype=np.float32), np.diag([-1.0, -1.0, 1.0]).astype(np.float32)],
+    "cylindrical_x": _cylindrical_symmetry_group("x"),
+    "cylindrical_y": _cylindrical_symmetry_group("y"),
+    "cylindrical_z": _cylindrical_symmetry_group("z"),
 }
 DEFAULT_SYMMETRY_GROUP = "none"
 
