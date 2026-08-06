@@ -26,7 +26,7 @@ from __future__ import annotations
 from .base import DetectionResult, DetectorBase
 from .rtmdet_inferencer import RTMDetInferencer  # 하위 호환 (기존 import 유지)
 
-AVAILABLE_DETECTOR_TYPES = ["rtmdet_ins", "rtmdet_ins_rothead"]
+AVAILABLE_DETECTOR_TYPES = ["rtmdet_ins", "rtmdet_ins_rothead", "rtmdet_ins_foundationpose"]
 
 __all__ = [
     "DetectorBase", "DetectionResult", "RTMDetInferencer",
@@ -56,6 +56,10 @@ def create_detector(config: dict) -> DetectorBase:
     if det_type == "rtmdet_ins_rothead":
         from .rtmdet_inferencer_rothead import RTMDetInferencerRotHead
         return RTMDetInferencerRotHead(**params)
+
+    if det_type == "rtmdet_ins_foundationpose":
+        from .rtmdet_inferencer_foundationpose import RTMDetInferencerFoundationPose
+        return RTMDetInferencerFoundationPose(**params)
 
     raise ValueError(
         f"지원하지 않는 검출 백엔드: '{det_type}'. "

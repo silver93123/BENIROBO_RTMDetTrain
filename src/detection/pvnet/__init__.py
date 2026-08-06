@@ -1,67 +1,51 @@
-"""2D 검출 백엔드 추상화 계층.
+"""PVNet 핵심 알고리즘 (네트워크 + RANSAC 투표 + uncertainty-driven PnP).
 
-src/camera(CameraBase/create_camera), app/core/registration
-(PoseEstimator/create_registrator)과 동일한 패턴:
+RTMDet-Ins가 이미 인스턴스 검출/마스크/bbox를 낸 뒤, 그 크롭을 입력받아
+DetectionResult.initial_pose(4x4)를 채우는 것이 최종 목표다. 이 모듈은
+그 중 핵심 알고리즘만 담고 있다 (이번 구현 범위). 아래는 아직 연결되지
+않았다 - 다음 단계에서 채워야 함:
+    - RTMDetInferencerRotHead와 동일한 패턴의 추론 wrapper
+      (크롭 -> pipeline.estimate_pose_from_crop -> DetectionResult.initial_pose)
+    - 학습 스크립트/데이터셋 (키포인트 2D 투영 GT 자동 생성 포함,
+      generate_rotation_labels.py와 같은 원리로 CAD pose를 알면
+      keypoints_3d를 그 pose로 투영해서 만들면 됨)
+    - GUI 탭 (app/tabs/training_pipelines, app/tabs/icp_pipelines)
 
-    from src.detection import create_detector
+의존성: 이 패키지는 scipy(least_squares)가 추가로 필요하다.
+requirements.txt에 없다면 `pip install scipy`로 설치할 것.
 
-    cfg = {
-        "type": "rtmdet_ins_rothead",
-        "params": {"config": "...", "checkpoint": "...", "device": "cuda:0"},
-    }
-    detector = create_detector(cfg)
-    results = detector.infer(image, depth_mm=depth, camera_intrinsics=K)
+사용 예시 (단일 크롭 end-to-end):
+    >>> from src.detection.pvnet import (
+    ...     PVNetHead, farthest_point_sampling, estimate_pose_from_crop,
+    ... )
+    >>> keypoints_3d = farthest_point_sampling(cad_surface_points, num_keypoints=8)
+    >>> model = PVNetHead(num_keypoints=len(keypoints_3d))
+    >>> result = estimate_pose_from_crop(model, crop_tensor, keypoints_3d, camera_matrix)
+    >>> result.pose         # (4, 4)
+    >>> result.reprojection_error
 
-새 백엔드를 추가할 때:
-    1. DetectorBase를 상속받는 클래스를 이 폴더에 새 파일로 작성
-       (rtmdet_inferencer_rothead.py 참고).
-    2. 아래 create_detector()에 타입 문자열 분기 한 줄 추가.
-    3. AVAILABLE_DETECTOR_TYPES에 문자열 추가 (icp_test_tab.py의
-       콤보박스가 이 목록을 그대로 채운다).
-그 외에는 아무 것도 손댈 필요 없다 - 호출부는 DetectorBase 인터페이스만
-보고 동작한다.
+단계별로 직접 다루고 싶으면 (voting 결과를 로깅/시각화하고 싶을 때 등):
+    >>> from src.detection.pvnet import vote_keypoints, solve_uncertainty_pnp
+    >>> seg_logits, vertex = model(crop_tensor.unsqueeze(0))   # PVNetHead.forward
+    >>> # ... fg_pixels, vertex_field로 후처리 (pipeline.py 참고) ...
+    >>> votes = vote_keypoints(fg_pixels, vertex_field, num_keypoints=9)
 """
-from __future__ import annotations
-
-from .base import DetectionResult, DetectorBase
-from .rtmdet_inferencer import RTMDetInferencer  # 하위 호환 (기존 import 유지)
-
-AVAILABLE_DETECTOR_TYPES = ["rtmdet_ins", "rtmdet_ins_rothead", "rtmdet_ins_foundationpose"]
+from .keypoints import farthest_point_sampling
+from .model import PVNetHead, segmentation_loss, vertex_smooth_l1_loss
+from .pipeline import estimate_pose_from_crop
+from .pnp import PnPResult, solve_uncertainty_pnp
+from .symmetry import canonicalize_axial_rotation
+from .voting import KeypointVote, vote_keypoints
 
 __all__ = [
-    "DetectorBase", "DetectionResult", "RTMDetInferencer",
-    "create_detector", "AVAILABLE_DETECTOR_TYPES",
+    "farthest_point_sampling",
+    "PVNetHead",
+    "segmentation_loss",
+    "vertex_smooth_l1_loss",
+    "estimate_pose_from_crop",
+    "PnPResult",
+    "solve_uncertainty_pnp",
+    "canonicalize_axial_rotation",
+    "KeypointVote",
+    "vote_keypoints",
 ]
-
-
-def create_detector(config: dict) -> DetectorBase:
-    """설정 dict로부터 검출 백엔드 인스턴스 생성 (factory).
-
-    Args:
-        config: {"type": <백엔드 이름>, "params": {<생성자 kwargs>}} 형태.
-
-    Returns:
-        DetectorBase 하위 클래스 인스턴스.
-
-    Raises:
-        ValueError: 지원하지 않는 백엔드 타입.
-    """
-    det_type = config.get("type", "rtmdet_ins").lower()
-    params = config.get("params", {}) or {}
-
-    if det_type == "rtmdet_ins":
-        from .rtmdet_inferencer import RTMDetInferencer
-        return RTMDetInferencer(**params)
-
-    if det_type == "rtmdet_ins_rothead":
-        from .rtmdet_inferencer_rothead import RTMDetInferencerRotHead
-        return RTMDetInferencerRotHead(**params)
-
-    if det_type == "rtmdet_ins_foundationpose":
-        from .rtmdet_inferencer_foundationpose import RTMDetInferencerFoundationPose
-        return RTMDetInferencerFoundationPose(**params)
-
-    raise ValueError(
-        f"지원하지 않는 검출 백엔드: '{det_type}'. "
-        f"지원: {AVAILABLE_DETECTOR_TYPES}"
-    )

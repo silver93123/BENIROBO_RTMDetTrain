@@ -17,6 +17,14 @@ import cv2
 import numpy as np
 
 
+# pcd_organized_mm/valid_mask를 실제로 쓰는 backend 집합.
+# 새 3D-aware backend를 추가할 때는 predict()를 고칠 필요 없이 여기 한 줄만
+# 추가하면 된다 - RotHead 추가 당시 이 분기를 문자열 하나로 하드코딩해 둔
+# 탓에 FoundationPose 추가 때 조용히 depth가 안 넘어가는 버그가 있었다
+# (2026-08 발견/수정).
+_BACKENDS_REQUIRING_3D = {"rtmdet_ins_rothead", "rtmdet_ins_foundationpose"}
+
+
 @dataclass
 class Detection:
     label: str
@@ -102,10 +110,10 @@ class Detector:
     ) -> list[Detection]:
         """이미지 한 장에 대해 검출을 수행한다.
 
-        pcd_organized_mm/valid_mask는 backend="rtmdet_ins_rothead"일 때만
-        의미가 있다 (initial_pose 계산에 필요, icp_test_tab.py가 세션에서
-        로드한 것과 동일한 배열을 그대로 넘기면 됨). rtmdet_ins backend에서는
-        무시된다.
+        pcd_organized_mm/valid_mask는 backend가 _BACKENDS_REQUIRING_3D에
+        속할 때만 의미가 있다 (initial_pose 계산에 필요, icp_test_tab.py가
+        세션에서 로드한 것과 동일한 배열을 그대로 넘기면 됨). 그 외
+        backend(rtmdet_ins 등)에서는 무시된다.
         """
         if self._inferencer is None:
             self.load_model()
@@ -117,7 +125,7 @@ class Detector:
             raise ValueError(f"이미지를 읽을 수 없습니다: {image_path}")
         bgr = np.stack([gray, gray, gray], axis=-1)
 
-        if self.backend == "rtmdet_ins_rothead":
+        if self.backend in _BACKENDS_REQUIRING_3D:
             results = self._inferencer.infer(
                 bgr, pcd_organized_mm=pcd_organized_mm, valid_mask=valid_mask
             )

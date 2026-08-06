@@ -27,12 +27,40 @@ from app.tabs.session_icp_tab import SessionICPTab
 from app.tabs.live_capture_icp_tab import LiveCaptureICPTab
 from app.tabs.live_label_generation_tab import LiveLabelGenerationTab
 from app.tabs.rothead_only_icp_tab import RotHeadOnlyICPTab
+from app.tabs.foundationpose_only_icp_tab import FoundationPoseOnlyICPTab
+from app.tabs.pvnet_label_generation_tab import PVNetLabelGenerationTab
 from app.tabs.manual_labeling_tab import ManualLabelingTab
 from app.tabs.training_pipelines import AVAILABLE_TRAINING_PIPELINES
 from app.widgets.log_console import LogConsole
 
 # 트리 아이템에 스택 페이지 인덱스를 저장할 때 쓰는 데이터 role.
 PAGE_INDEX_ROLE = Qt.ItemDataRole.UserRole
+
+
+class CurrentPageStackedWidget(QStackedWidget):
+    """QStackedWidget 기본 동작 보정: sizeHint/minimumSizeHint를 '현재 보이는
+    페이지' 기준으로만 계산한다.
+
+    Qt의 QStackedWidget은 기본적으로 지금까지 추가된 *모든* 페이지 중 가장
+    큰 최소 크기를 스택 전체의 최소 크기로 잡는다 - 즉 화면에 안 보이는
+    탭 하나가 크면, 지금 보고 있는 다른(작은) 탭에서도 메인 윈도우 전체의
+    최소 크기가 그만큼 커져버린다. 탭 9(FoundationPoseOnlyICPTab)가
+    image_viewer에 setMinimumHeight(520)을 건 이후 창 최대화가 안 되는
+    현상이 정확히 이 문제였다(2026-08 발견/수정) - 최소 크기가 화면
+    작업영역에 근접/초과하면 윈도우 매니저가 최대화 요청을 사실상 무시한다.
+
+    이 서브클래스는 QMainWindow의 유일한 self.stack으로 쓰이므로, 페이지가
+    많아져도(탭이 계속 늘어나도) 창 크기가 그중 가장 큰 탭에 발목 잡히지
+    않는다.
+    """
+
+    def sizeHint(self):  # noqa: N802 - Qt override 관례
+        current = self.currentWidget()
+        return current.sizeHint() if current is not None else super().sizeHint()
+
+    def minimumSizeHint(self):  # noqa: N802 - Qt override 관례
+        current = self.currentWidget()
+        return current.minimumSizeHint() if current is not None else super().minimumSizeHint()
 
 
 class MainWindow(QMainWindow):
@@ -59,7 +87,7 @@ class MainWindow(QMainWindow):
         self.nav_tree.setHeaderHidden(True)
         body.addWidget(self.nav_tree)
 
-        self.stack = QStackedWidget()
+        self.stack = CurrentPageStackedWidget()
         body.addWidget(self.stack, stretch=1)
 
         # ---- 페이지 구성 (탭 인스턴스 생성 + 스택에 추가 + 트리 항목 연결) ----
@@ -102,6 +130,12 @@ class MainWindow(QMainWindow):
         self.manual_labeling_tab = ManualLabelingTab()
         self._add_leaf("8. 수동 라벨링", self.manual_labeling_tab)
 
+        self.foundationpose_test_tab = FoundationPoseOnlyICPTab()
+        self._add_leaf("9. FoundationPose 정합테스트", self.foundationpose_test_tab)
+
+        self.pvnet_label_gen_tab = PVNetLabelGenerationTab()
+        self._add_leaf("10. PVNet 라벨 생성", self.pvnet_label_gen_tab)
+
         self.nav_tree.currentItemChanged.connect(self._on_nav_changed)
 
         self.log_console = LogConsole()
@@ -118,6 +152,8 @@ class MainWindow(QMainWindow):
         self.label_gen_tab.log_message.connect(self.log_console.append_log)
         self.rothead_test_tab.log_message.connect(self.log_console.append_log)
         self.manual_labeling_tab.log_message.connect(self.log_console.append_log)
+        self.foundationpose_test_tab.log_message.connect(self.log_console.append_log)
+        self.pvnet_label_gen_tab.log_message.connect(self.log_console.append_log)
 
         # 데이터 수집 탭에서 수집이 끝나면 -> RTMDet 학습 탭 / ICP 탭(세션 기반)에 바로 연동.
         # LiveCaptureICPTab(탭5)은 세션이 아니라 카메라로 즉시 촬영하는 개념이라
@@ -165,3 +201,7 @@ class MainWindow(QMainWindow):
             current.setExpanded(not current.isExpanded())
             return
         self.stack.setCurrentIndex(page_index)
+        # sizeHint/minimumSizeHint를 오버라이드했으므로, 탭이 바뀔 때마다
+        # 레이아웃이 새 현재 페이지 기준으로 다시 계산되도록 명시적으로
+        # 알려준다 (Qt가 캐시된 이전 sizeHint를 계속 쓰는 것을 방지).
+        self.stack.updateGeometry()
