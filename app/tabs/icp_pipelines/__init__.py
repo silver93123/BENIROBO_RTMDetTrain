@@ -13,12 +13,17 @@ app/core/registration, src/detection과 동일한 팩토리 패턴이지만, 여
 from __future__ import annotations
 
 from app.tabs.icp_pipelines.base import ICPPipelineTab
+from app.tabs.icp_pipelines.foundationpose_pipeline_tab import FoundationPosePipelineTab
 from app.tabs.icp_pipelines.rothead_pipeline_tab import RotHeadPipelineTab
 from app.tabs.icp_pipelines.rtmdet_pipeline_tab import RTMDetPipelineTab
 
 AVAILABLE_ICP_PIPELINES = [
     ("RTMDet", RTMDetPipelineTab),
     ("RotHead", RotHeadPipelineTab),
+    ("FoundationPose", FoundationPosePipelineTab),
 ]
 
-__all__ = ["ICPPipelineTab", "RTMDetPipelineTab", "RotHeadPipelineTab", "AVAILABLE_ICP_PIPELINES"]
+__all__ = [
+    "ICPPipelineTab", "RTMDetPipelineTab", "RotHeadPipelineTab",
+    "FoundationPosePipelineTab", "AVAILABLE_ICP_PIPELINES",
+]
