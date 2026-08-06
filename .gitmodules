@@ -1,0 +1,3 @@
+[submodule "vendor/FoundationPose"]
+	path = vendor/FoundationPose
+	url = https://github.com/NVlabs/FoundationPose
