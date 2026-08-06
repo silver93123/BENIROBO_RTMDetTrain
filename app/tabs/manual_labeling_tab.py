@@ -37,7 +37,7 @@ from datetime import datetime
 
 import numpy as np
 from PyQt6.QtWidgets import (
-    QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout, QLabel,
+    QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout, QLabel,
     QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
@@ -75,7 +75,6 @@ DEFAULT_MASK_ERODE_PX = 1
 DEFAULT_ANGLE_RX_DEG = 180.0
 DEFAULT_ANGLE_RY_DEG = 180.0
 DEFAULT_ANGLE_RZ_DEG = 90.0
-ANGLE_RANGE_DEG = 45.0  # 기본값 기준 ± 범위 - 미세조정 용도라 180 전체범위는 안 씀
 
 AXIS_KEYS = ("Rx", "Ry", "Rz")
 
@@ -88,9 +87,11 @@ class ManualLabelingTab(LiveCaptureICPTab):
         self._pvnet_labels: list[dict] = []
         self._n_saved_session = 0
         self._angle_widgets: dict[int, dict] = {}
+        self._include_checkboxes: dict[int, QCheckBox] = {}
         self._instance_centroids_mm: dict[int, np.ndarray] = {}
         self._keypoints_3d: np.ndarray | None = None
         self._cad_overlay_points_m: np.ndarray | None = None
+        self._cad_center_m: np.ndarray | None = None
         self._keypoints_3d_cad_path: str | None = None
         self._intrinsics: tuple | None = None
         super().__init__(parent)
@@ -211,6 +212,7 @@ class ManualLabelingTab(LiveCaptureICPTab):
 
     def _clear_manual_panel(self) -> None:
         self._angle_widgets.clear()
+        self._include_checkboxes.clear()
         while self.manual_layout.count() > 1:  # 마지막 addStretch(1)은 남김
             item = self.manual_layout.takeAt(0)
             widget = item.widget()
@@ -239,6 +241,11 @@ class ManualLabelingTab(LiveCaptureICPTab):
             self._cad_axis_loaded = axis_tuple
 
             cad_points = np.asarray(self._cad_pcd.points)
+            self._cad_center_m = cad_points.mean(axis=0)  # CAD 로컬 원점이 아니라
+            # 실제 기하학적 중심 - 회전은 반드시 이 점을 축으로 해야 함 (원점이
+            # 물체 모서리 등에 있으면 원점 기준 회전은 물체가 궤도를 도는 것처럼
+            # 보이는 오차가 생김)
+
             self._keypoints_3d = farthest_point_sampling(
                 cad_points, num_keypoints=PVNET_NUM_KEYPOINTS, include_centroid=True
             )
@@ -262,10 +269,17 @@ class ManualLabelingTab(LiveCaptureICPTab):
     def _render_manual_panel(self) -> None:
         """검출된 인스턴스마다 Rx/Ry/Rz 입력 카드를 만든다.
 
-        기본값/범위는 이 탭 상단의 상수(DEFAULT_ANGLE_*_DEG, ANGLE_RANGE_DEG)를
-        쓴다. 카드가 만들어지자마자 기본 각도로 오버레이를 한 번 그려서, 만들어진
-        직후부터 바로 비교해볼 수 있게 한다.
+        기본값은 이 탭 상단의 상수(DEFAULT_ANGLE_*_DEG)를 쓰고, 범위는 -180~180
+        전체를 허용한다. 카드가 만들어지자마자 기본 각도로 오버레이를 한 번
+        그려서, 만들어진 직후부터 바로 비교해볼 수 있게 한다.
+
+        맨 처음에 이미지 뷰어의 오버레이를 전부 지운다 - 안 그러면 이전 검출
+        (예: conf 0.5로 6개 검출)에서 그려진 obj3~5 오버레이가, 이번 검출
+        (conf 0.8로 3개만 검출)에서 obj0~2만 다시 그려도 안 지워지고 그대로
+        남는 갱신 버그가 있었다 (인덱스별로만 덮어쓰고, 이번엔 아예 안 만들어진
+        인덱스는 그대로 방치됐었음).
         """
+        self.image_viewer.clear_pose_overlays()
         self._clear_manual_panel()
         defaults = {"Rx": DEFAULT_ANGLE_RX_DEG, "Ry": DEFAULT_ANGLE_RY_DEG, "Rz": DEFAULT_ANGLE_RZ_DEG}
 
@@ -280,16 +294,24 @@ class ManualLabelingTab(LiveCaptureICPTab):
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(8, 6, 8, 6)
 
+            title_row = QHBoxLayout()
             title = QLabel(f"obj{i}")
             title.setStyleSheet("font-weight: 600;")
-            card_layout.addWidget(title)
+            title_row.addWidget(title)
+            title_row.addStretch(1)
+            include_cb = QCheckBox("라벨링 포함")
+            include_cb.setChecked(True)
+            include_cb.toggled.connect(lambda checked, idx=i: self._on_include_toggled(idx, checked))
+            title_row.addWidget(include_cb)
+            card_layout.addLayout(title_row)
+            self._include_checkboxes[i] = include_cb
 
             spins: dict[str, QDoubleSpinBox] = {}
             for key in AXIS_KEYS:
                 row = QHBoxLayout()
                 row.addWidget(QLabel(key))
                 spin = QDoubleSpinBox()
-                spin.setRange(defaults[key] - ANGLE_RANGE_DEG, defaults[key] + ANGLE_RANGE_DEG)
+                spin.setRange(-180.0, 180.0)
                 spin.setValue(defaults[key])
                 spin.setSingleStep(1.0)
                 spin.valueChanged.connect(lambda _v, idx=i: self._update_pose_overlay(idx))
@@ -311,22 +333,70 @@ class ManualLabelingTab(LiveCaptureICPTab):
             return None
         return pts_mm.mean(axis=0)
 
+    def _on_include_toggled(self, obj_index: int, checked: bool) -> None:
+        """체크 해제 -> 각도 입력칸 비활성화 + 오버레이 즉시 제거 (시각화에 반영).
+        다시 체크 -> 입력칸 재활성화 + 현재 각도로 오버레이 다시 그림."""
+        spins = self._angle_widgets.get(obj_index)
+        if spins:
+            for spin in spins.values():
+                spin.setEnabled(checked)
+
+        if checked:
+            self._update_pose_overlay(obj_index)
+        else:
+            self.image_viewer.set_pose_overlay(obj_index, None)
+
     def _update_pose_overlay(self, obj_index: int) -> None:
         """obj_index의 현재 Rx/Ry/Rz 스핀박스 값으로 CAD 서브샘플 점을 투영해서
         이미지 뷰어에 반투명 점으로 그린다. 필요한 것(centroid/CAD/intrinsic) 중
-        하나라도 없으면 조용히 아무것도 안 그린다 (아직 검출 전이거나 CAD 미선택)."""
+        하나라도 없거나, 이 오브젝트가 '라벨링 포함' 체크 해제 상태면 조용히
+        아무것도 안 그린다."""
+        include_cb = self._include_checkboxes.get(obj_index)
+        if include_cb is not None and not include_cb.isChecked():
+            self.image_viewer.set_pose_overlay(obj_index, None)
+            return
+
         spins = self._angle_widgets.get(obj_index)
         centroid_mm = self._instance_centroids_mm.get(obj_index)
         if (spins is None or centroid_mm is None or self._cad_overlay_points_m is None
-                or self._intrinsics is None):
+                or self._cad_center_m is None or self._intrinsics is None):
             self.image_viewer.set_pose_overlay(obj_index, None)
             return
 
         Rx, Ry, Rz = spins["Rx"].value(), spins["Ry"].value(), spins["Rz"].value()
         R = _Rz(Rz) @ _Ry(Ry) @ _Rx(Rx)
 
-        points_cam_mm = (R @ self._cad_overlay_points_m.T).T * 1000.0 + centroid_mm
+        points_centered_m = self._cad_overlay_points_m - self._cad_center_m  # CAD 중심을 원점으로
+        points_cam_mm = (R @ points_centered_m.T).T * 1000.0 + centroid_mm
         points_2d = project_points(points_cam_mm, self._intrinsics)
+
+        # 클러터가 심하면 마스크 경계가 옆 인스턴스로 새서 centroid가 잘못 잡히거나,
+        # 다른 원인으로 투영이 어긋나 다른(검출 안 된) 볼트 위까지 오버레이가 번질
+        # 수 있다. 방어적으로 "이 인스턴스 자신의 검출 bbox 주변(10% 여유)"을 벗어난
+        # 점은 그리지 않는다 - 자기 자리가 아니면 절대 안 보이게 강제하는 안전장치.
+        # (여유를 50%로 뒀을 때 볼트가 다닥다닥 붙은 클러터 장면에서 바로 옆 볼트
+        # 영역까지 포함돼버려서 10%로 대폭 줄임 - 필요하면 더 좁혀도 됨.)
+        det = self._last_detections[obj_index] if obj_index < len(self._last_detections) else None
+        if det is not None:
+            x1, y1, x2, y2 = det.bbox
+            bw, bh = x2 - x1, y2 - y1
+            margin_x, margin_y = bw * 0.1, bh * 0.1
+            in_bounds = (
+                (points_2d[:, 0] >= x1 - margin_x) & (points_2d[:, 0] <= x2 + margin_x)
+                & (points_2d[:, 1] >= y1 - margin_y) & (points_2d[:, 1] <= y2 + margin_y)
+            )
+            n_dropped = int((~in_bounds).sum())
+            if n_dropped > 0:
+                bbox_center = np.array([(x1 + x2) / 2, (y1 + y2) / 2])
+                overlay_center = points_2d.mean(axis=0)
+                dist = np.linalg.norm(overlay_center - bbox_center)
+                self.log_message.emit(
+                    f"[{self.LOG_PREFIX}] obj{obj_index}: 오버레이 점 {n_dropped}/{len(points_2d)}개가 "
+                    f"자기 bbox 밖으로 나가서 제외됨 (bbox중심={bbox_center.round(1)}, "
+                    f"투영중심={overlay_center.round(1)}, 거리={dist:.1f}px, centroid_mm={centroid_mm.round(1)})"
+                )
+            points_2d = points_2d[in_bounds]
+
         self.image_viewer.set_pose_overlay(obj_index, points_2d)
 
     # ------------------------------------------------------- 저장
@@ -359,6 +429,11 @@ class ManualLabelingTab(LiveCaptureICPTab):
 
         n_saved = 0
         for i, det in enumerate(self._last_detections):
+            include_cb = self._include_checkboxes.get(i)
+            if include_cb is not None and not include_cb.isChecked():
+                self.log_message.emit(f"[{self.LOG_PREFIX}] obj{i}: '라벨링 포함' 체크 해제됨 - 건너뜀")
+                continue
+
             spins = self._angle_widgets.get(i)
             centroid_mm = self._instance_centroids_mm.get(i)
             if spins is None or centroid_mm is None:
@@ -382,7 +457,8 @@ class ManualLabelingTab(LiveCaptureICPTab):
 
             # --- PVNet 라벨 (keypoints_2d, 대칭축 있으면 정규화 후 투영) ---
             R_for_projection = canonicalize_axial_rotation(R, symmetry_axis) if symmetry_axis != "none" else R
-            keypoints_cam_mm = (R_for_projection @ self._keypoints_3d.T).T * 1000.0 + centroid_mm
+            keypoints_centered_m = self._keypoints_3d - self._cad_center_m  # CAD 중심을 원점으로
+            keypoints_cam_mm = (R_for_projection @ keypoints_centered_m.T).T * 1000.0 + centroid_mm
             keypoints_2d = project_points(keypoints_cam_mm, self._intrinsics)
 
             self._pvnet_labels.append({

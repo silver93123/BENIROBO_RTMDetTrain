@@ -9,8 +9,10 @@ from PyQt6.QtWidgets import QLabel, QSizePolicy
 from app.core.detector import Detection
 
 MASK_ALPHA = 100  # 0~255, 마스크 반투명도 (낮을수록 더 투명)
-POSE_OVERLAY_ALPHA = 160  # 0~255, pose 미리보기 점 반투명도
+POSE_OVERLAY_ALPHA = 100  # 0~255, pose 미리보기 윤곽선 반투명도 (낮을수록 더 투명)
 POSE_OVERLAY_RADIUS = 2.5  # px
+POSE_OVERLAY_LINE_WIDTH = 1.2  # px, 윤곽선 두께 (채워진 원이 아니라 속이 빈 원)
+POSE_OVERLAY_COLOR = QColor(0, 220, 255, POSE_OVERLAY_ALPHA)  # 하늘색 - 노란 볼트 실물과 안 겹치게
 
 
 class ImageViewer(QLabel):
@@ -89,11 +91,12 @@ class ImageViewer(QLabel):
             painter.drawText(int(x1) + 4, int(y1) - 5, label_text)
             painter.setPen(pen)
 
-        # 3단계: pose 미리보기 오버레이 (반투명 노란 점 - CAD를 현재 입력 각도로
-        # 투영한 것. 실제 물체 실루엣과 겹치면 입력한 각도가 잘 맞다는 뜻).
-        overlay_color = QColor(255, 210, 0, POSE_OVERLAY_ALPHA)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(overlay_color)
+        # 3단계: pose 미리보기 오버레이 (반투명 노란 "윤곽선" 원 - CAD를 현재
+        # 입력 각도로 투영한 것. 속이 빈 원이라 실제 물체 사진이 안 가려지고,
+        # 실루엣과 겹치면 입력한 각도가 잘 맞다는 뜻).
+        overlay_pen = QPen(POSE_OVERLAY_COLOR, POSE_OVERLAY_LINE_WIDTH)
+        painter.setPen(overlay_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         for points_2d in self._pose_overlays.values():
             for x, y in points_2d:
                 painter.drawEllipse(QRectF(x - POSE_OVERLAY_RADIUS, y - POSE_OVERLAY_RADIUS,
