@@ -143,7 +143,7 @@ default_hooks = dict(
 # -----------------------------------------------------------------------------
 # 6. Pretrained 가중치 로드
 # -----------------------------------------------------------------------------
-load_from = '/home/silver/binpicking_vision/BENIROBO_RTMDetTrain/work_dirs/rtmdet-ins_bolt_m10_80_v1/best_coco_bbox_mAP_epoch_40.pth'
+load_from = '/home/silver/binpicking_vision/BENIROBO_RTMDetTrain/work_dirs/rtmdet-ins_bolt_m10_80_v1/best_coco_bbox_mAP_epoch_50.pth'
 
 
 # -----------------------------------------------------------------------------
