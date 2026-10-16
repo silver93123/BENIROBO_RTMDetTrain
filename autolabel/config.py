@@ -30,13 +30,13 @@ class AutoLabelConfig:
     # approxPolyDP epsilon = ratio * arcLength.
     # 0.001 -> 정점 100개 이상(편집 지옥), 0.01 -> 모서리 뭉개짐.
     # 0.002~0.004 구간에서 정점 20~50개가 편집하기 좋은 지점.
-    approx_eps_ratio: float = 0.0025
+    approx_eps_ratio: float = 0.01
     # 이보다 작은 마스크 조각은 노이즈로 보고 버린다 (픽셀 단위)
     min_mask_area: int = 120
     # 관통홀 등 내부 컨투어를 별도 shape(group_id 공유)로 유지할지 여부
     keep_holes: bool = False
     # 정점이 이보다 많으면 epsilon을 키워 재시도
-    max_vertices: int = 80
+    max_vertices: int = 30
 
     # ------------------------------------------------------------------
     # 자동 승인 / 우선순위

@@ -32,6 +32,7 @@ from app.tabs.pvnet_label_generation_tab import PVNetLabelGenerationTab
 from app.tabs.manual_labeling_tab import ManualLabelingTab
 from app.tabs.training_pipelines import AVAILABLE_TRAINING_PIPELINES
 from app.widgets.log_console import LogConsole
+from app.tabs.autolabel_tab import AutoLabelTab
 
 # 트리 아이템에 스택 페이지 인덱스를 저장할 때 쓰는 데이터 role.
 PAGE_INDEX_ROLE = Qt.ItemDataRole.UserRole
@@ -136,6 +137,9 @@ class MainWindow(QMainWindow):
         self.pvnet_label_gen_tab = PVNetLabelGenerationTab()
         self._add_leaf("10. PVNet 라벨 생성", self.pvnet_label_gen_tab)
 
+        self.autolabel_tab = AutoLabelTab()
+        self._add_leaf("11. 2D 오토라벨링", self.autolabel_tab)
+
         self.nav_tree.currentItemChanged.connect(self._on_nav_changed)
 
         self.log_console = LogConsole()
@@ -154,6 +158,7 @@ class MainWindow(QMainWindow):
         self.manual_labeling_tab.log_message.connect(self.log_console.append_log)
         self.foundationpose_test_tab.log_message.connect(self.log_console.append_log)
         self.pvnet_label_gen_tab.log_message.connect(self.log_console.append_log)
+        self.autolabel_tab.log_message.connect(self.log_console.append_log)
 
         # 데이터 수집 탭에서 수집이 끝나면 -> RTMDet 학습 탭 / ICP 탭(세션 기반)에 바로 연동.
         # LiveCaptureICPTab(탭5)은 세션이 아니라 카메라로 즉시 촬영하는 개념이라
@@ -168,6 +173,7 @@ class MainWindow(QMainWindow):
         # 첫 화면: 트리의 첫 leaf 항목 선택
         first_leaf = self.nav_tree.topLevelItem(0)
         self.nav_tree.setCurrentItem(first_leaf)
+
 
     def _add_leaf(self, label: str, page: QWidget, parent_item: QTreeWidgetItem | None = None) -> None:
         """스택에 페이지를 추가하고, 그 인덱스를 담은 트리 leaf 항목을 만든다."""
