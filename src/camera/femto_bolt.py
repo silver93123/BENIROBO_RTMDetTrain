@@ -73,6 +73,18 @@ _MANUAL_REQUIRES_AUTO_OFF = {
 # SDK의 OBPowerLineFreqMode 값 (pyorbbecsdk2 2.1.2 스텁 기준)
 _POWER_LINE_VALUES = {0: 0, 50: 1, 60: 2}
 
+# depth 후처리 필터: config 키 → SDK 필터 이름에 포함되는 문자열.
+# 적용 순서는 Orbbec 권장 순서(데시메이션→임계→노이즈→공간→시간→홀필링)다.
+_DEPTH_FILTER_ORDER = (
+    ("decimation", "decimation"),
+    ("threshold", "threshold"),
+    ("noise_removal", "noiseremoval"),
+    ("spatial", "spatial"),
+    ("temporal", "temporal"),
+    ("hole_filling", "holefilling"),
+)
+_HOLE_FILLING_MODES = ("top", "nearest", "furthest")  # OBHoleFillingMode 0/1/2
+
 try:
     from pyorbbecsdk import (  # type: ignore
         AlignFilter,
@@ -121,6 +133,12 @@ class FemtoBoltCamera(CameraBase):
             auto_white_balance, white_balance, sharpness, saturation, contrast, hdr,
             power_line_freq(0/50/60). 값이 None/누락이면 카메라 기본값을 건드리지 않는다.
             capture_rgb=True일 때만 적용된다. 일부 항목이 실패해도 경고만 남기고 진행한다.
+        depth_filters: depth 후처리 필터 설정 (config의 camera.depth_filters 섹션).
+            키: enabled(마스터 스위치), apply_to_pointcloud(기본 False),
+            threshold / hole_filling / spatial / temporal / noise_removal / decimation.
+            각 필터는 {enabled: bool, <파라미터>: 값}. 기본 동작은 "RGB 정렬에만 적용"이며
+            포인트클라우드(organized PCD)는 원본 depth로 만든다 (홀필링은 값을 지어내므로).
+            필터 설정이 실패해도 경고만 남기고 캡처는 계속된다.
     """
 
     def __init__(
@@ -134,6 +152,7 @@ class FemtoBoltCamera(CameraBase):
         warmup_frames: int = 5,
         capture_rgb: bool = False,
         color_settings: Optional[dict] = None,
+        depth_filters: Optional[dict] = None,
     ) -> None:
         if not _ORBBEC_AVAILABLE:
             raise ImportError(
@@ -154,6 +173,8 @@ class FemtoBoltCamera(CameraBase):
         self.warmup_frames = int(warmup_frames)
         self.capture_rgb = bool(capture_rgb)
         self.color_settings = dict(color_settings) if color_settings else {}
+        self.depth_filter_cfg = dict(depth_filters) if depth_filters else {}
+        self._depth_filters: list = []  # [(config_key, Filter)] 적용 순서대로
 
         self._pipeline: Optional["Pipeline"] = None
         self._pc_filter: Optional["PointCloudFilter"] = None
@@ -236,6 +257,8 @@ class FemtoBoltCamera(CameraBase):
 
         if self.capture_rgb and self.color_settings:
             self._apply_color_settings(self.color_settings)
+
+        self._setup_depth_filters()
 
         self._pc_filter = PointCloudFilter()
         self._pc_filter.set_create_point_format(OBFormat.POINT)
@@ -347,6 +370,129 @@ class FemtoBoltCamera(CameraBase):
             logger.info("Femto Bolt color 설정 적용: %s", applied)
         return applied
 
+    # --------------------------------------------------------- depth filters
+    def _setup_depth_filters(self) -> None:
+        """camera.depth_filters 설정대로 depth 후처리 필터를 준비한다.
+
+        필터 객체는 depth 센서의 get_recommended_filters()에서 가져오고, 거기에 없으면
+        FilterFactory.create_filter(이름)로 시도한다. 하나가 실패해도 경고만 남긴다.
+        """
+        self._depth_filters = []
+        cfg = self.depth_filter_cfg
+        if not cfg or not cfg.get("enabled", True):
+            return
+        wanted = {}
+        for k, _ in _DEPTH_FILTER_ORDER:
+            v = cfg.get(k)
+            if isinstance(v, dict) and v.get("enabled", False):
+                wanted[k] = v
+        known = {"enabled", "apply_to_pointcloud"} | {k for k, _ in _DEPTH_FILTER_ORDER}
+        unknown = sorted(set(cfg) - known)
+        if unknown:
+            logger.warning("camera.depth_filters에 알 수 없는 키가 있어 무시합니다: %s", unknown)
+        if not wanted:
+            return
+
+        available = {}
+        try:
+            sensor = self._pipeline.get_device().get_sensor(OBSensorType.DEPTH_SENSOR)
+            for f in sensor.get_recommended_filters():
+                available[f.get_name()] = f
+        except Exception as e:
+            logger.warning("depth 권장 필터 목록을 가져오지 못했습니다: %s", e)
+        logger.info("Femto Bolt depth 필터 사용 가능 목록: %s", sorted(available))
+
+        for key, token in _DEPTH_FILTER_ORDER:
+            fcfg = wanted.get(key)
+            if fcfg is None:
+                continue
+            flt = next((f for n, f in available.items() if token in n.lower().replace("_", "")), None)
+            if flt is None:
+                try:  # 일부 필터는 활성화 키가 필요해 예외가 날 수 있다 (안전하게 처리됨)
+                    from pyorbbecsdk import FilterFactory  # type: ignore
+                    name = {"decimation": "DecimationFilter", "threshold": "ThresholdFilter",
+                            "noise_removal": "NoiseRemovalFilter", "spatial": "SpatialAdvancedFilter",
+                            "temporal": "TemporalFilter", "hole_filling": "HoleFillingFilter"}[key]
+                    flt = FilterFactory.create_filter(name)
+                except Exception as e:
+                    logger.warning("depth_filters.%s: 필터를 만들 수 없어 건너뜁니다: %s", key, e)
+                    continue
+            try:
+                self._configure_depth_filter(key, flt, fcfg)
+                flt.enable(True)
+                self._depth_filters.append((key, flt))
+            except Exception as e:
+                logger.warning("depth_filters.%s 설정 실패 (건너뜀): %s", key, e)
+
+        if self._depth_filters:
+            logger.info(
+                "Femto Bolt depth 필터 적용: %s | 포인트클라우드에도 적용=%s",
+                [k for k, _ in self._depth_filters], bool(cfg.get("apply_to_pointcloud", False)),
+            )
+
+    @staticmethod
+    def _configure_depth_filter(key: str, flt, fcfg: dict) -> None:
+        """필터 파라미터 적용. hole_filling.mode는 전용 setter, 나머지는 스키마 이름으로 설정."""
+        schema = {}
+        try:
+            schema = {it.name: it for it in flt.get_config_schema_vec()}
+        except Exception:
+            pass
+        params = {k: v for k, v in fcfg.items() if k != "enabled" and v is not None}
+        for pname, value in params.items():
+            try:
+                if key == "hole_filling" and pname == "mode":
+                    mode = str(value).lower()
+                    if mode not in _HOLE_FILLING_MODES:
+                        logger.warning("hole_filling.mode=%s: top/nearest/furthest 중 하나여야 합니다.", value)
+                        continue
+                    idx = _HOLE_FILLING_MODES.index(mode)  # OBHoleFillingMode 0/1/2
+                    if hasattr(flt, "set_filling_mode"):
+                        from pyorbbecsdk import OBHoleFillingMode  # type: ignore
+                        flt.set_filling_mode(getattr(OBHoleFillingMode, mode.upper()))
+                        continue
+                    # 권장 필터는 기본 Filter 타입으로 오는 경우가 있어 스키마 이름으로 설정
+                    cand = [n for n in schema if "mode" in n.lower()]
+                    if cand:
+                        flt.set_config_value(cand[0], float(idx))
+                    else:
+                        logger.warning(
+                            "hole_filling.mode: 이 필터에서 모드를 설정할 방법이 없어 기본 모드를 씁니다 "
+                            "(필터 파라미터 목록: %s).", sorted(schema))
+                    continue
+                if schema and pname not in schema:
+                    logger.warning("depth_filters.%s.%s: 이 필터에 없는 파라미터입니다 (가능: %s).",
+                                   key, pname, sorted(schema))
+                    continue
+                if pname in schema:
+                    it = schema[pname]
+                    v = min(max(float(value), it.min), it.max)
+                    if v != float(value):
+                        logger.warning("depth_filters.%s.%s=%s → 범위 [%s, %s]로 조정",
+                                       key, pname, value, it.min, it.max)
+                    value = v
+                flt.set_config_value(pname, float(value))
+            except Exception as e:  # 파라미터 하나가 실패해도 필터 자체는 켠다
+                logger.warning("depth_filters.%s.%s 설정 실패 (기본값 유지): %s", key, pname, e)
+
+    def _apply_depth_filters(self, frames):
+        """프레임셋에 depth 필터를 순서대로 적용해 새 프레임셋을 돌려준다.
+        실패하면 그 필터를 끄고 직전 결과를 유지한다 (캡처는 계속)."""
+        out = frames
+        for key, flt in list(self._depth_filters):
+            try:
+                res = flt.process(out)
+                if res is None:
+                    raise RuntimeError("process()가 None 반환")
+                nxt = res.as_frame_set() if hasattr(res, "as_frame_set") else res
+                if nxt.get_depth_frame() is None:
+                    raise RuntimeError("결과에 depth 없음")
+                out = nxt
+            except Exception as e:
+                logger.warning("depth_filters.%s 처리 실패 - 이후 프레임에서 제외: %s", key, e)
+                self._depth_filters.remove((key, flt))
+        return out
+
     # ----------------------------------------------------------------- close
     def close(self) -> None:
         if self._pipeline is None:
@@ -358,6 +504,7 @@ class FemtoBoltCamera(CameraBase):
         self._pipeline = None
         self._pc_filter = None
         self._align_filter = None
+        self._depth_filters = []
 
     # --------------------------------------------------------------- capture
     def capture(self) -> FrameData:
@@ -368,6 +515,16 @@ class FemtoBoltCamera(CameraBase):
             )
 
         frames, depth_frame, ir_frame = self._wait_for_frameset()
+
+        # depth 후처리: 기본은 RGB 정렬용 프레임셋에만 적용하고 PCD는 원본 depth 사용.
+        rgb_frames = frames
+        if self._depth_filters:
+            filtered = self._apply_depth_filters(frames)
+            if filtered is not frames:
+                if self.depth_filter_cfg.get("apply_to_pointcloud", False):
+                    frames = filtered
+                    depth_frame = filtered.get_depth_frame()
+                rgb_frames = filtered
 
         h = depth_frame.get_height()
         w = depth_frame.get_width()
@@ -405,7 +562,7 @@ class FemtoBoltCamera(CameraBase):
 
         color_rgb = None
         if self.capture_rgb and self._align_filter is not None:
-            color_rgb = self._try_extract_aligned_rgb(frames, h, w)
+            color_rgb = self._try_extract_aligned_rgb(rgb_frames, h, w)
 
         return FrameData(
             intensity=intensity,

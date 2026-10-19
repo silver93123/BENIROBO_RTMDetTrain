@@ -128,6 +128,34 @@ camera:
     power_line_freq: 60      # 0=끔, 50, 60 (조명 깜빡임 줄무늬가 보이면 지역 주파수에 맞춤)
     # 필요하면 추가: gamma, hue, backlight_compensation
 
+  # ---- depth 후처리 필터 (Orbbec Viewer의 Depth > Post Processing 과 같은 항목) ----
+  # 목적: 깊이가 없는 픽셀(검은 구멍)을 메워 정렬된 RGB의 검은 영역을 줄인다.
+  #   - 기본은 RGB 정렬에만 적용하고, 포인트클라우드/organized PCD 는 원본 depth 로 만든다
+  #     (홀필링은 없는 깊이를 지어내므로 피킹용 3D 데이터에는 기본적으로 넣지 않음).
+  #     PCD 에도 쓰려면 apply_to_pointcloud: true.
+  #   - 파라미터는 null 이면 기본값. 로그의 "depth 필터 사용 가능 목록"에 이 장치가
+  #     제공하는 필터 이름이 나온다. 필터 하나가 실패해도 경고만 남기고 캡처는 계속된다.
+  #   - 적용 순서는 고정: decimation → threshold → noise_removal → spatial → temporal → hole_filling
+  #   - decimation 은 해상도를 바꿔 IR/PCD 와 어긋나므로 권장하지 않는다 (켜지 마세요).
+  depth_filters:
+    enabled: true
+    apply_to_pointcloud: false
+    threshold:
+      enabled: true
+      min: 0              # mm
+      max: 16000          # mm
+    hole_filling:
+      enabled: true
+      mode: nearest       # top | nearest | furthest
+    spatial:
+      enabled: false
+    temporal:
+      enabled: false
+    noise_removal:
+      enabled: false
+    decimation:
+      enabled: false
+
   valid_z_range_mm: [100.0, 1500.0]
 """
 

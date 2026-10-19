@@ -82,6 +82,7 @@ def _create_base_camera(config: dict) -> CameraBase:
             warmup_frames=config.get("warmup_frames", 5),
             capture_rgb=config.get("capture_rgb", False),
             color_settings=config.get("color"),
+            depth_filters=config.get("depth_filters"),
         )
 
     raise ValueError(
