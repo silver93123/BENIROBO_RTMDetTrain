@@ -304,6 +304,14 @@ class FemtoBoltCamera(CameraBase):
                     continue
 
                 if kind == "bool":
+                    current = None
+                    try:
+                        current = bool(device.get_bool_property(prop_id))
+                    except Exception:
+                        pass
+                    if current is not None and current == bool(value):
+                        applied[key] = current  # 이미 원하는 값: 쓰기 생략
+                        continue
                     device.set_bool_property(prop_id, bool(value))
                     applied[key] = bool(device.get_bool_property(prop_id))
                 else:
@@ -322,6 +330,14 @@ class FemtoBoltCamera(CameraBase):
                                 key, target, rng.min, rng.max, clamped,
                             )
                         target = clamped
+                    current = None
+                    try:
+                        current = int(device.get_int_property(prop_id))
+                    except Exception:
+                        pass
+                    if current is not None and current == target:
+                        applied[key] = current  # 이미 원하는 값: 쓰기 생략
+                        continue
                     device.set_int_property(prop_id, target)
                     applied[key] = int(device.get_int_property(prop_id))
             except Exception as e:
@@ -351,21 +367,7 @@ class FemtoBoltCamera(CameraBase):
                 "with 구문을 사용하세요."
             )
 
-        deadline = time.monotonic() + self.capture_timeout_ms / 1000.0
-        frames = depth_frame = ir_frame = None
-        while time.monotonic() < deadline:
-            frames = self._pipeline.wait_for_frames(self.capture_timeout_ms)
-            if frames is None:
-                continue
-            depth_frame = frames.get_depth_frame()
-            ir_frame = frames.get_ir_frame()
-            if depth_frame is not None and ir_frame is not None:
-                break
-        if depth_frame is None or ir_frame is None:
-            raise RuntimeError(
-                "유효한 depth/IR 프레임셋을 획득하지 못했습니다. "
-                "USB 연결(전용 USB3 포트 권장) 및 스트림 프로파일을 확인하세요."
-            )
+        frames, depth_frame, ir_frame = self._wait_for_frameset()
 
         h = depth_frame.get_height()
         w = depth_frame.get_width()
@@ -414,6 +416,39 @@ class FemtoBoltCamera(CameraBase):
             color_rgb=color_rgb,
         )
 
+    # capture_rgb일 때 컬러가 포함된 프레임셋을 기다리는 최대 시간 (초)
+    _COLOR_WAIT_S = 1.0
+
+    def _wait_for_frameset(self):
+        """depth+IR(그리고 capture_rgb면 color)가 모두 있는 프레임셋을 기다린다.
+
+        컬러는 depth/IR과 프레임레이트/지연이 달라 프레임셋에 빠지는 경우가 있다.
+        컬러가 없는 프레임셋이 오면 _COLOR_WAIT_S 동안 다음 프레임셋을 더 기다려 보고,
+        끝내 없으면 마지막 depth/IR 프레임셋으로 진행한다 (RGB만 None, 크래시 없음).
+        """
+        deadline = time.monotonic() + self.capture_timeout_ms / 1000.0
+        color_deadline = time.monotonic() + self._COLOR_WAIT_S
+        best = None
+        while time.monotonic() < deadline:
+            frames = self._pipeline.wait_for_frames(self.capture_timeout_ms)
+            if frames is None:
+                continue
+            depth_frame = frames.get_depth_frame()
+            ir_frame = frames.get_ir_frame()
+            if depth_frame is None or ir_frame is None:
+                continue
+            best = (frames, depth_frame, ir_frame)
+            if not self.capture_rgb or frames.get_color_frame() is not None:
+                break
+            if time.monotonic() >= color_deadline:
+                break
+        if best is None:
+            raise RuntimeError(
+                "유효한 depth/IR 프레임셋을 획득하지 못했습니다. "
+                "USB 연결(전용 USB3 포트 권장) 및 스트림 프로파일을 확인하세요."
+            )
+        return best
+
     def _try_extract_aligned_rgb(self, frames, h: int, w: int) -> Optional[np.ndarray]:
         """depth 격자에 정렬된 RGB를 뽑아본다. 실패해도 None만 반환하고 절대
         예외를 위로 던지지 않는다 (IR/depth 기반 캡처 성공에 영향 주지 않기 위함)."""
@@ -425,7 +460,14 @@ class FemtoBoltCamera(CameraBase):
             aligned_fs = aligned.as_frame_set()
             color_frame = aligned_fs.get_color_frame()
             if color_frame is None:
-                logger.warning("정렬된 프레임셋에서 color를 가져오지 못했습니다.")
+                try:
+                    raw_has_color = frames.get_color_frame() is not None
+                except Exception:
+                    raw_has_color = None
+                logger.warning(
+                    "정렬된 프레임셋에서 color를 가져오지 못했습니다 "
+                    "(정렬 전 원본 프레임셋에 color 있음=%s).", raw_has_color,
+                )
                 return None
 
             c_h, c_w = color_frame.get_height(), color_frame.get_width()
