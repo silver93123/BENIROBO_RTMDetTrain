@@ -28,7 +28,7 @@ from PyQt6.QtCore import pyqtSignal, QUrl, Qt
 from PyQt6.QtGui import QDesktopServices, QPixmap
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QFileDialog, QMessageBox, QSpinBox, QCheckBox,
+    QFileDialog, QMessageBox, QSpinBox, QCheckBox, QComboBox,
 )
 
 from app.core.capture_runner import DataCaptureRunner
@@ -106,6 +106,28 @@ camera:
   # "RGB PNG (Femto Bolt 전용)" 체크박스도 같이 켜야 실제로 저장된다.
   capture_rgb: false
 
+  # ---- 컬러 카메라 조정 (capture_rgb: true 일 때만 적용) ----
+  # Orbbec Viewer의 Color 패널 항목과 같은 이름/의미다. 아래 값은 Viewer 화면의 값을
+  # 옮긴 시작점이며, Viewer에서 화면을 보며 맞춘 뒤 그 값을 여기에 적으면 된다.
+  #   - 값을 null로 두면 그 항목은 카메라 기본값을 건드리지 않는다.
+  #   - 장치가 허용하는 범위를 벗어나면 범위 안으로 조정하고 경고를 남긴다.
+  #   - 실제 적용된 값은 수집 로그의 "Femto Bolt color 설정 적용: {...}" 줄에 나온다.
+  #   - auto_exposure: true 이면 exposure/gain 은, auto_white_balance: true 이면
+  #     white_balance 는 무시된다 (수동 값을 쓰려면 해당 auto 를 false 로).
+  color:
+    auto_exposure: false
+    exposure: 500
+    gain: 38
+    brightness: 10
+    auto_white_balance: true
+    white_balance: null      # auto_white_balance: false 로 바꿀 때 8600 등 지정
+    sharpness: 40
+    saturation: 65
+    contrast: 50
+    hdr: false
+    power_line_freq: 60      # 0=끔, 50, 60 (조명 깜빡임 줄무늬가 보이면 지역 주파수에 맞춤)
+    # 필요하면 추가: gamma, hue, backlight_compensation
+
   valid_z_range_mm: [100.0, 1500.0]
 """
 
@@ -120,6 +142,9 @@ class DataCollectionTab(QWidget):
         self.runner: DataCaptureRunner | None = None
         self._current_out_dir: str = ""
         self._intensity_selected: bool = True
+        self._rgb_selected: bool = False
+        self._last_idx: int | None = None
+        self._preview_shown: bool = False
         self._build_ui()
 
         self.config_edit.setText(str(DEFAULT_CAMERA_CONFIG_PATH))
@@ -232,11 +257,23 @@ class DataCollectionTab(QWidget):
             formats_row.addWidget(chk)
         formats_row.addStretch(1)
         layout.addLayout(formats_row)
+        # RGB 저장을 켜면 미리보기도 RGB로 자동 전환 (수동으로 바꿔도 됨)
+        self.chk_rgb.toggled.connect(self._on_rgb_toggled)
 
         split_row = QHBoxLayout()
 
         preview_col = QVBoxLayout()
-        preview_col.addWidget(QLabel("최근 캡처 미리보기 (Intensity PNG)"))
+        preview_header = QHBoxLayout()
+        preview_header.addWidget(QLabel("최근 캡처 미리보기"))
+        self.cmb_preview_source = QComboBox()
+        self.cmb_preview_source.addItems(["Intensity", "RGB"])
+        self.cmb_preview_source.setToolTip(
+            "RGB는 'RGB PNG' 체크 + config의 camera.capture_rgb: true 일 때만 볼 수 있습니다 (Femto Bolt)."
+        )
+        self.cmb_preview_source.currentIndexChanged.connect(self._on_preview_source_changed)
+        preview_header.addWidget(self.cmb_preview_source)
+        preview_header.addStretch(1)
+        preview_col.addLayout(preview_header)
         self.preview_label = QLabel("아직 캡처된 프레임이 없습니다.")
         self.preview_label.setMinimumHeight(320)
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -389,6 +426,9 @@ class DataCollectionTab(QWidget):
             )
             return
         self._intensity_selected = "intensity" in selected_formats
+        self._rgb_selected = "rgb" in selected_formats
+        self._last_idx = None
+        self._preview_shown = False
 
         command = (
             f'python "{DEFAULT_COLLECT_SCRIPT}" '
@@ -442,18 +482,39 @@ class DataCollectionTab(QWidget):
         if "valid" in data and "idx" in data:
             self._update_preview(data["idx"])
 
+    def _on_rgb_toggled(self, checked: bool) -> None:
+        self.cmb_preview_source.setCurrentText("RGB" if checked else "Intensity")
+
+    def _on_preview_source_changed(self, _index: int) -> None:
+        # 소스를 바꾸면 마지막 캡처 프레임을 바로 다시 그린다
+        if self._last_idx is not None:
+            self._update_preview(self._last_idx)
+
     def _update_preview(self, idx: int) -> None:
-        if not self._intensity_selected:
-            self.preview_label.setText(
-                "Intensity PNG 저장이 꺼져 있어 미리보기를 표시할 수 없습니다."
-            )
-            return
+        self._last_idx = idx
+        use_rgb = self.cmb_preview_source.currentText() == "RGB"
+        if use_rgb:
+            if not self._rgb_selected:
+                self.preview_label.setText(
+                    "RGB PNG 저장이 꺼져 있어 미리보기를 표시할 수 없습니다."
+                )
+                return
+            subdir = "color_rgb"
+        else:
+            if not self._intensity_selected:
+                self.preview_label.setText(
+                    "Intensity PNG 저장이 꺼져 있어 미리보기를 표시할 수 없습니다."
+                )
+                return
+            subdir = "intensity"
         if not self._current_out_dir:
             return
         png_path = os.path.join(
-            self._current_out_dir, "intensity", f"frame_{idx:04d}.png"
+            self._current_out_dir, subdir, f"frame_{idx:04d}.png"
         )
         if not os.path.isfile(png_path):
+            # 스크립트는 "프레임 N" 줄을 먼저 찍고 나중에 저장하므로, 이 시점엔 파일이
+            # 아직 없는 게 정상이다. 문구로 덮어쓰지 말고 직전 이미지를 그대로 둔다.
             return
         pixmap = QPixmap(png_path)
         if pixmap.isNull():
@@ -463,9 +524,18 @@ class DataCollectionTab(QWidget):
             self.preview_label.height(), Qt.TransformationMode.SmoothTransformation
         )
         self.preview_label.setPixmap(scaled)
+        self._preview_shown = True
 
     def _on_finished(self, exit_code: int) -> None:
         self.log_message.emit(f"데이터 수집 프로세스 종료 (exit code {exit_code})")
+        if (
+            not self._preview_shown
+            and self._rgb_selected
+            and self.cmb_preview_source.currentText() == "RGB"
+        ):
+            self.preview_label.setText(
+                "RGB 파일을 찾지 못했습니다. config의 camera.capture_rgb: true 인지 확인하세요."
+            )
         self.btn_start.setEnabled(True)
         for b in (self.btn_capture, self.btn_skip, self.btn_quit, self.btn_force_stop):
             b.setEnabled(False)

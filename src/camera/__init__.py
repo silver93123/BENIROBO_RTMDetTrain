@@ -81,6 +81,7 @@ def _create_base_camera(config: dict) -> CameraBase:
             valid_z_range_mm=tuple(config.get("valid_z_range_mm", (100.0, 1500.0))),
             warmup_frames=config.get("warmup_frames", 5),
             capture_rgb=config.get("capture_rgb", False),
+            color_settings=config.get("color"),
         )
 
     raise ValueError(

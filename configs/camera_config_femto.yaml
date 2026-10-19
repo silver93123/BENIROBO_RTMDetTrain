@@ -30,4 +30,26 @@ camera:
   # "RGB PNG (Femto Bolt 전용)" 체크박스도 같이 켜야 실제로 저장된다.
   capture_rgb: True
 
+  # ---- 컬러 카메라 조정 (capture_rgb: true 일 때만 적용) ----
+  # Orbbec Viewer의 Color 패널 항목과 같은 이름/의미다. 아래 값은 Viewer 화면의 값을
+  # 옮긴 시작점이며, Viewer에서 화면을 보며 맞춘 뒤 그 값을 여기에 적으면 된다.
+  #   - 값을 null로 두면 그 항목은 카메라 기본값을 건드리지 않는다.
+  #   - 장치가 허용하는 범위를 벗어나면 범위 안으로 조정하고 경고를 남긴다.
+  #   - 실제 적용된 값은 수집 로그의 "Femto Bolt color 설정 적용: {...}" 줄에 나온다.
+  #   - auto_exposure: true 이면 exposure/gain 은, auto_white_balance: true 이면
+  #     white_balance 는 무시된다 (수동 값을 쓰려면 해당 auto 를 false 로).
+  color:
+    auto_exposure: false
+    exposure: 500
+    gain: 38
+    brightness: 10
+    auto_white_balance: true
+    white_balance: null      # auto_white_balance: false 로 바꿀 때 8600 등 지정
+    sharpness: 40
+    saturation: 65
+    contrast: 50
+    hdr: false
+    power_line_freq: 60      # 0=끔, 50, 60 (조명 깜빡임 줄무늬가 보이면 지역 주파수에 맞춤)
+    # 필요하면 추가: gamma, hue, backlight_compensation
+
   valid_z_range_mm: [100.0, 1500.0]

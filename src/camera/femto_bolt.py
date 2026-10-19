@@ -45,12 +45,42 @@ from .base import CameraBase, FrameData
 
 logger = logging.getLogger(__name__)
 
+# camera.color 섹션 키 -> (pyorbbecsdk OBPropertyID 이름, 종류).
+# Orbbec Viewer의 Color 패널 항목과 1:1 대응한다. 자동 모드 플래그를 먼저 적용해야
+# 수동 값(exposure/gain/white_balance)이 먹기 때문에 이 순서를 유지한다.
+_COLOR_PROPERTIES = (
+    ("auto_exposure", "OB_PROP_COLOR_AUTO_EXPOSURE_BOOL", "bool"),
+    ("auto_white_balance", "OB_PROP_COLOR_AUTO_WHITE_BALANCE_BOOL", "bool"),
+    ("hdr", "OB_PROP_COLOR_HDR_BOOL", "bool"),
+    ("exposure", "OB_PROP_COLOR_EXPOSURE_INT", "int"),
+    ("gain", "OB_PROP_COLOR_GAIN_INT", "int"),
+    ("brightness", "OB_PROP_COLOR_BRIGHTNESS_INT", "int"),
+    ("white_balance", "OB_PROP_COLOR_WHITE_BALANCE_INT", "int"),
+    ("sharpness", "OB_PROP_COLOR_SHARPNESS_INT", "int"),
+    ("saturation", "OB_PROP_COLOR_SATURATION_INT", "int"),
+    ("contrast", "OB_PROP_COLOR_CONTRAST_INT", "int"),
+    ("gamma", "OB_PROP_COLOR_GAMMA_INT", "int"),
+    ("hue", "OB_PROP_COLOR_HUE_INT", "int"),
+    ("backlight_compensation", "OB_PROP_COLOR_BACKLIGHT_COMPENSATION_INT", "int"),
+    ("power_line_freq", "OB_PROP_COLOR_POWER_LINE_FREQUENCY_INT", "powerline"),
+)
+# 수동 값이 의미를 가지려면 꺼져 있어야 하는 자동 모드
+_MANUAL_REQUIRES_AUTO_OFF = {
+    "exposure": "auto_exposure",
+    "gain": "auto_exposure",
+    "white_balance": "auto_white_balance",
+}
+# SDK의 OBPowerLineFreqMode 값 (pyorbbecsdk2 2.1.2 스텁 기준)
+_POWER_LINE_VALUES = {0: 0, 50: 1, 60: 2}
+
 try:
     from pyorbbecsdk import (  # type: ignore
         AlignFilter,
         Config,
         OBError,
         OBFormat,
+        OBPermissionType,
+        OBPropertyID,
         OBSensorType,
         OBStreamType,
         Pipeline,
@@ -86,6 +116,11 @@ class FemtoBoltCamera(CameraBase):
             기본값 False). IR/depth 기반 검증된 파이프라인과는 완전히 분리되어
             있어서, 이 옵션이 실패해도(스트림 미지원, AlignFilter 실패 등)
             capture()는 color_rgb=None으로 정상 반환하며 크래시하지 않는다.
+        color_settings: 컬러 카메라 조정값 (config의 camera.color 섹션). Orbbec Viewer의
+            Color 패널과 같은 항목: auto_exposure, exposure, gain, brightness,
+            auto_white_balance, white_balance, sharpness, saturation, contrast, hdr,
+            power_line_freq(0/50/60). 값이 None/누락이면 카메라 기본값을 건드리지 않는다.
+            capture_rgb=True일 때만 적용된다. 일부 항목이 실패해도 경고만 남기고 진행한다.
     """
 
     def __init__(
@@ -98,6 +133,7 @@ class FemtoBoltCamera(CameraBase):
         valid_z_range_mm: tuple = (100.0, 1500.0),
         warmup_frames: int = 5,
         capture_rgb: bool = False,
+        color_settings: Optional[dict] = None,
     ) -> None:
         if not _ORBBEC_AVAILABLE:
             raise ImportError(
@@ -117,6 +153,7 @@ class FemtoBoltCamera(CameraBase):
         self._valid_z_max = float(valid_z_range_mm[1])
         self.warmup_frames = int(warmup_frames)
         self.capture_rgb = bool(capture_rgb)
+        self.color_settings = dict(color_settings) if color_settings else {}
 
         self._pipeline: Optional["Pipeline"] = None
         self._pc_filter: Optional["PointCloudFilter"] = None
@@ -197,6 +234,9 @@ class FemtoBoltCamera(CameraBase):
 
         self._pipeline.start(config)
 
+        if self.capture_rgb and self.color_settings:
+            self._apply_color_settings(self.color_settings)
+
         self._pc_filter = PointCloudFilter()
         self._pc_filter.set_create_point_format(OBFormat.POINT)
 
@@ -216,6 +256,80 @@ class FemtoBoltCamera(CameraBase):
             except OBError:
                 pass
         time.sleep(0.1)
+
+    # ------------------------------------------------------------ color setup
+    def _apply_color_settings(self, settings: dict) -> dict:
+        """camera.color 값을 장치 속성으로 적용한다. 적용된 실제 값을 dict로 반환.
+
+        항목 하나가 실패(미지원/쓰기 불가/범위 오류)해도 경고만 남기고 다음 항목으로
+        넘어간다. 정수 항목은 장치가 보고하는 범위로 clamp하고, 적용 후 읽어 온
+        실제 값을 로그에 남기므로 튜닝할 때 이 로그를 보면 된다.
+        """
+        applied: dict = {}
+        try:
+            device = self._pipeline.get_device()
+        except Exception as e:
+            logger.warning("컬러 설정 적용 불가 (장치 핸들 실패): %s", e)
+            return applied
+
+        unknown = sorted(set(settings) - {k for k, _, _ in _COLOR_PROPERTIES})
+        if unknown:
+            logger.warning("camera.color에 알 수 없는 키가 있어 무시합니다: %s", unknown)
+
+        for key, prop_name, kind in _COLOR_PROPERTIES:
+            value = settings.get(key)
+            if value is None:
+                continue
+
+            auto_key = _MANUAL_REQUIRES_AUTO_OFF.get(key)
+            if auto_key and settings.get(auto_key) is True:
+                logger.warning(
+                    "color.%s=%s 은(는) %s=true 라서 무시될 수 있어 건너뜁니다 "
+                    "(수동 값을 쓰려면 %s: false).", key, value, auto_key, auto_key,
+                )
+                continue
+
+            prop_id = getattr(OBPropertyID, prop_name, None)
+            if prop_id is None:
+                logger.warning("color.%s: SDK에 %s 속성이 없습니다 (SDK 버전 확인).", key, prop_name)
+                continue
+            try:
+                writable = any(
+                    device.is_property_supported(prop_id, perm)
+                    for perm in (OBPermissionType.PERMISSION_WRITE,
+                                 OBPermissionType.PERMISSION_READ_WRITE)
+                )
+                if not writable:
+                    logger.warning("color.%s: 이 장치/펌웨어에서 쓰기를 지원하지 않습니다.", key)
+                    continue
+
+                if kind == "bool":
+                    device.set_bool_property(prop_id, bool(value))
+                    applied[key] = bool(device.get_bool_property(prop_id))
+                else:
+                    if kind == "powerline":
+                        if int(value) not in _POWER_LINE_VALUES:
+                            logger.warning("color.power_line_freq=%s: 0/50/60 중 하나여야 합니다.", value)
+                            continue
+                        target = _POWER_LINE_VALUES[int(value)]
+                    else:
+                        target = int(value)
+                        rng = device.get_int_property_range(prop_id)
+                        clamped = min(max(target, rng.min), rng.max)
+                        if clamped != target:
+                            logger.warning(
+                                "color.%s=%d 은(는) 장치 범위 [%d, %d] 밖이라 %d 로 조정합니다.",
+                                key, target, rng.min, rng.max, clamped,
+                            )
+                        target = clamped
+                    device.set_int_property(prop_id, target)
+                    applied[key] = int(device.get_int_property(prop_id))
+            except Exception as e:
+                logger.warning("color.%s 적용 실패 (무시하고 계속): %s", key, e)
+
+        if applied:
+            logger.info("Femto Bolt color 설정 적용: %s", applied)
+        return applied
 
     # ----------------------------------------------------------------- close
     def close(self) -> None:
