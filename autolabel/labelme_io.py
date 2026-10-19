@@ -1,9 +1,13 @@
 """예측 캐시 <-> labelme JSON 변환.
 
-labelme는 shapes[].flags 를 그대로 보존해준다.
-여기에 provenance(auto / score / model)를 심어두면
-나중에 "자동 라벨이 모델을 망쳤나"를 검증할 수 있다.
-이 필드가 없으면 검증할 방법이 사실상 없다.
+labelme 7.x 는 JSON을 읽을 때 엄격하게 검증한다 (labelme/_label_file.py 확인):
+  - shape.flags / 최상위 flags 의 값은 전부 bool 이어야 한다 (float/str 이면 로드 실패)
+  - group_id 는 int 또는 None
+  - imageHeight / imageWidth 가 실제 이미지 크기와 다르면 로드 실패
+그래서 provenance(score, 모델)는 flags가 아니라 shape.description(문자열)에 넣는다.
+description 은 shape와 함께 편집/삭제/복제를 따라다니므로 출처 추적에 적합하다.
+
+검수 완료 표시는 이미지 단위 flag `reviewed` (labelme --flags reviewed) 로 받는다.
 """
 
 from __future__ import annotations
@@ -16,7 +20,40 @@ import numpy as np
 from .config import DEFAULT, AutoLabelConfig
 from .mask_utils import decode_rle, mask_to_polygons, polygons_to_mask
 
-LABELME_VERSION = "5.5.0"
+LABELME_VERSION = "7.0.0"  # labelme는 읽을 때 이 값을 검사하지 않는다
+REVIEWED_FLAG = "reviewed"
+PROVENANCE_PREFIX = "auto"
+
+
+# ----------------------------------------------------------------------
+# provenance (shape.description 문자열)
+# ----------------------------------------------------------------------
+
+
+def make_provenance(score: float, model_tag: str) -> str:
+    return f"{PROVENANCE_PREFIX}|score={score:.3f}|model={model_tag}"
+
+
+def parse_provenance(description: str | None) -> dict:
+    """'auto|score=0.870|model=tag' -> {'auto': True, 'score': 0.87, 'model': 'tag'}. 아니면 {}."""
+    if not description or not description.startswith(PROVENANCE_PREFIX + "|"):
+        return {}
+    out: dict = {"auto": True}
+    for part in description.split("|")[1:]:
+        key, _, value = part.partition("=")
+        if key == "score":
+            try:
+                out["score"] = float(value)
+            except ValueError:
+                pass
+        elif key == "model":
+            out["model"] = value
+    return out
+
+
+# ----------------------------------------------------------------------
+# 캐시 -> labelme
+# ----------------------------------------------------------------------
 
 
 def cache_to_labelme(
@@ -35,6 +72,7 @@ def cache_to_labelme(
         polys = mask_to_polygons(
             mask,
             eps_ratio=cfg.approx_eps_ratio,
+            smooth_sigma=cfg.smooth_sigma,
             min_area=cfg.min_mask_area,
             keep_holes=cfg.keep_holes,
             max_vertices=cfg.max_vertices,
@@ -44,38 +82,46 @@ def cache_to_labelme(
                 {
                     "label": inst["label"],
                     "points": [[float(x), float(y)] for x, y in poly["points"]],
+                    # keep_holes=False 면 인스턴스 하나가 shape 하나이므로 group_id 불필요
                     "group_id": group_id if cfg.keep_holes else None,
-                    "description": "",
+                    "description": make_provenance(float(inst["score"]), model_tag),
                     "shape_type": "polygon",
-                    "flags": {
-                        "auto": True,
-                        "hole": bool(poly["is_hole"]),
-                        "score": float(inst["score"]),
-                        "model": model_tag,
-                    },
+                    "flags": {"hole": bool(poly["is_hole"])},  # bool 만 허용
                     "mask": None,
                 }
             )
 
     return {
         "version": LABELME_VERSION,
-        "flags": {},
+        "flags": {REVIEWED_FLAG: False},
         "shapes": shapes,
         "imagePath": image_filename,
-        "imageData": None,  # --nodata 와 동일. 파일 크기를 수십 배 줄인다.
+        "imageData": None,  # 이미지는 JSON 옆 파일(심볼릭 링크)에서 읽는다
         "imageHeight": int(height),
         "imageWidth": int(width),
     }
 
 
-def write_labelme(path: Path, payload: dict) -> None:
-    with open(path, "w", encoding="utf-8") as fp:
-        json.dump(payload, fp, ensure_ascii=False, indent=2)
+def write_labelme(path: Path, payload: dict) -> bytes:
+    """JSON을 쓰고, 쓴 바이트를 반환한다 (미검수 판별용 해시 계산에 사용)."""
+    data = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    Path(path).write_bytes(data)
+    return data
 
 
 def read_labelme(path: Path) -> dict:
     with open(path, encoding="utf-8") as fp:
         return json.load(fp)
+
+
+# ----------------------------------------------------------------------
+# labelme -> 마스크
+# ----------------------------------------------------------------------
+
+
+def is_marked_reviewed(payload: dict) -> bool:
+    """이미지 단위 flag `reviewed` 가 켜져 있는가."""
+    return bool((payload.get("flags") or {}).get(REVIEWED_FLAG, False))
 
 
 def labelme_to_masks(payload: dict) -> list[dict]:
@@ -102,7 +148,7 @@ def labelme_to_masks(payload: dict) -> list[dict]:
                 "label": shape["label"],
                 "outer": [],
                 "holes": [],
-                "flags": shape.get("flags", {}) or {},
+                "provenance": parse_provenance(shape.get("description")),
             },
         )
         if (shape.get("flags") or {}).get("hole"):
@@ -123,13 +169,12 @@ def labelme_to_masks(payload: dict) -> list[dict]:
                 "mask": mask,
                 "outer": entry["outer"],
                 "holes": entry["holes"],
-                "flags": entry["flags"],
+                "provenance": entry["provenance"],
             }
         )
     return out
 
 
 def write_labels_txt(path: Path, classes: list[str]) -> None:
-    """labelme --labels 로 넘길 클래스 목록 파일."""
-    lines = ["__ignore__", "_background_", *classes]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    """labelme --labels 로 넘길 클래스 목록 (한 줄에 하나, 다른 항목을 섞지 않는다)."""
+    Path(path).write_text("\n".join(classes) + "\n", encoding="utf-8")

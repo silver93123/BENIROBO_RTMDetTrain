@@ -16,9 +16,9 @@ class AutoLabelConfig:
     # ------------------------------------------------------------------
     # 라벨링용 추론은 학습 평가용보다 낮게 잡는다.
     # 사람이 지우는 비용 << 사람이 새로 그리는 비용 이므로 recall 우선.
-    score_thr: float = 0.30
+    score_thr: float = 0.7
     # 한 장에서 받아들일 최대 인스턴스 수 (폭주 방지)
-    max_instances: int = 150
+    max_instances: int = 20
     # 좌우반전 TTA로 불확실도를 측정할지 여부. 추론 비용 2배.
     use_tta_hflip: bool = True
     # TTA 인스턴스 매칭 시 같은 객체로 볼 최소 IoU
@@ -30,14 +30,16 @@ class AutoLabelConfig:
     # approxPolyDP epsilon = ratio * arcLength.
     # 0.001 -> 정점 100개 이상(편집 지옥), 0.01 -> 모서리 뭉개짐.
     # 0.002~0.004 구간에서 정점 20~50개가 편집하기 좋은 지점.
-    approx_eps_ratio: float = 0.01
+    approx_eps_ratio: float = 0.002
+    smooth_sigma: float = 0.0
+
     # 이보다 작은 마스크 조각은 노이즈로 보고 버린다 (픽셀 단위)
     min_mask_area: int = 120
     # 관통홀 등 내부 컨투어를 별도 shape(group_id 공유)로 유지할지 여부
     keep_holes: bool = False
     # 정점이 이보다 많으면 epsilon을 키워 재시도
     max_vertices: int = 30
-
+    
     # ------------------------------------------------------------------
     # 자동 승인 / 우선순위
     # ------------------------------------------------------------------

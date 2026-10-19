@@ -92,13 +92,21 @@ def mask_to_polygons(
     min_area: int = 120,
     keep_holes: bool = False,
     max_vertices: int = 80,
+    smooth_sigma: float = 0.0,
 ) -> list[dict]:
     """불리언 마스크를 폴리곤 리스트로 변환.
 
     반환 형식: [{"points": (N,2) float ndarray, "is_hole": bool}, ...]
     keep_holes=True면 내부 컨투어(관통홀)도 is_hole=True로 포함한다.
+
+    smooth_sigma > 0 이면 컨투어를 따기 전에 마스크 경계를 가우시안 블러 후 0.5로
+    다시 이진화해 계단 모양을 완화한다. 같은 정점 수에서 모양이 더 깨끗해진다.
+    값이 너무 크면 가는 부분이 깎이므로 객체의 가장 가는 폭의 1/4 이하로 쓴다. 0이면 끔.
     """
     m = np.asarray(mask, dtype=np.uint8)
+    if smooth_sigma and smooth_sigma > 0:
+        blurred = cv2.GaussianBlur(m.astype(np.float32), (0, 0), float(smooth_sigma))
+        m = (blurred > 0.5).astype(np.uint8)
     mode = cv2.RETR_CCOMP if keep_holes else cv2.RETR_EXTERNAL
     contours, hierarchy = cv2.findContours(m, mode, cv2.CHAIN_APPROX_SIMPLE)
 

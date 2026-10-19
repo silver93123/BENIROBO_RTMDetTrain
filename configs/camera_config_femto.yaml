@@ -40,8 +40,8 @@ camera:
   #     white_balance 는 무시된다 (수동 값을 쓰려면 해당 auto 를 false 로).
   color:
     auto_exposure: false
-    exposure: 500
-    gain: 38
+    # exposure: 500
+    # gain: 38
     brightness: 10
     auto_white_balance: true
     white_balance: null      # auto_white_balance: false 로 바꿀 때 8600 등 지정
@@ -52,4 +52,4 @@ camera:
     power_line_freq: 60      # 0=끔, 50, 60 (조명 깜빡임 줄무늬가 보이면 지역 주파수에 맞춤)
     # 필요하면 추가: gamma, hue, backlight_compensation
 
-  valid_z_range_mm: [100.0, 1500.0]
+  # valid_z_range_mm: [100.0, 1500.0]
