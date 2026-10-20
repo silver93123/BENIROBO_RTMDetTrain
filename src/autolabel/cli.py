@@ -22,6 +22,7 @@ from pathlib import Path
 
 from .config import DEFAULT
 from .merge import export_coco, merge_round
+from .train_export import export_training_dataset
 from .queue_builder import build_queue, launch_labelme
 
 
@@ -38,6 +39,10 @@ def _cfg_from_args(args):
         overrides["score_thr"] = args.score_thr
     if getattr(args, "no_tta", False):
         overrides["use_tta_hflip"] = False
+    if getattr(args, "max_vertices", None) is not None:
+        overrides["max_vertices"] = args.max_vertices
+    if getattr(args, "eps_ratio", None) is not None:
+        overrides["approx_eps_ratio"] = args.eps_ratio
     return replace(DEFAULT, **overrides) if overrides else DEFAULT
 
 
@@ -109,6 +114,11 @@ def cmd_export(args) -> int:
     return 0
 
 
+def cmd_to_train(args) -> int:
+    export_training_dataset(Path(args.dataset), Path(args.out), overwrite=args.overwrite)
+    return 0
+
+
 def cmd_stats(args) -> int:
     path = Path(args.round) / "round_stats.json"
     if not path.exists():
@@ -141,6 +151,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--round", required=True)
     p.add_argument("--classes", type=_classes, default=None, help="생략하면 캐시(추론 당시 모델)의 클래스 목록")
     p.add_argument("--overwrite", action="store_true", help="기존 대기열을 지우고 새로 만든다 (검수 내용 소실)")
+    p.add_argument("--max-vertices", type=int, default=None, help="다각형 최대 점 수 (기본: config.py 값)")
+    p.add_argument("--eps-ratio", type=float, default=None, help="다각형 단순화 강도 (클수록 점이 줄어듦, 기본: config.py 값)")
     p.set_defaults(func=cmd_queue)
 
     p = sub.add_parser("edit", help="labelme 실행")
@@ -166,6 +178,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--classes", type=_classes, default=None, help="생략하면 dataset/classes.json")
     p.add_argument("--out", default=None, help="기본: <dataset>/annotations.json")
     p.set_defaults(func=cmd_export)
+
+    p = sub.add_parser("to-train", help="COCO export -> 학습용 데이터셋 폴더(intensity/ + annotations/instances_Train.json)")
+    p.add_argument("--dataset", required=True, help="오토라벨 데이터셋 폴더 (annotations.json 이 있는 곳)")
+    p.add_argument("--out", required=True, help="만들 학습 데이터셋 폴더 (예: data/dataset/autolabel_round04)")
+    p.add_argument("--overwrite", action="store_true", help="기존 intensity/, annotations/ 를 지우고 다시 만든다")
+    p.set_defaults(func=cmd_to_train)
 
     p = sub.add_parser("stats", help="라운드 품질 지표 출력")
     p.add_argument("--round", required=True)

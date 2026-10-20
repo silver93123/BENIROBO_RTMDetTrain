@@ -15,6 +15,7 @@ from PyQt6.QtCore import QProcess, QProcessEnvironment, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -23,12 +24,14 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QProgressBar,
+    QSpinBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from app.core.paths import DEFAULT_CONFIG_PATH, PROJECT_ROOT
+from src.autolabel.config import DEFAULT
 
 # labelme 는 PySide6 기반이라 이 앱(PyQt6)과 같은 env 에 두면 충돌할 수 있다.
 # 별도 env 에 설치했다면 그 env 의 labelme 절대경로로 바꾼다.
@@ -56,14 +59,18 @@ def _default_checkpoint() -> str:
 
 class AutoLabelTab(QWidget):
     log_message = pyqtSignal(str)
+    # 학습용 데이터셋이 만들어지면 그 폴더 경로를 알린다 (메인 윈도우가 학습 탭으로 연결)
+    dataset_ready = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        self._after_steps = None
         self._proc: QProcess | None = None
         self._steps: list[tuple[str, list[str]]] = []
         self._current_step = ""
         self._labelme_proc = None
         self._build_ui()
+        self._reload_rounds()
         self._refresh_summary()
 
     # ------------------------------------------------------------------ UI
@@ -92,6 +99,36 @@ class AutoLabelTab(QWidget):
         form.addRow("Config (.py)", self._path_row(self.ed_config, "file", "Python (*.py)"))
         form.addRow("체크포인트 (.pth)", self._path_row(self.ed_ckpt, "file", "Checkpoint (*.pth)"))
         form.addRow("라운드 이름", self.ed_round)
+        self.cmb_rounds = QComboBox()
+        self.cmb_rounds.setToolTip("이미 만든 라운드를 고르면 위 '라운드 이름'이 바뀌고, 2단계에서 그 라운드의 라벨을 다시 열 수 있습니다.")
+        self.cmb_rounds.activated.connect(self._on_round_picked)
+        form.addRow("기존 라운드 불러오기", self.cmb_rounds)
+        self.spn_score = QDoubleSpinBox()
+        self.spn_score.setRange(0.05, 0.95)
+        self.spn_score.setSingleStep(0.05)
+        self.spn_score.setDecimals(2)
+        self.spn_score.setValue(float(DEFAULT.score_thr))
+        self.spn_score.setToolTip(
+            "이 점수 미만의 검출은 아예 버립니다 (추론 때 적용).\n"
+            "낮추면 놓친 물체를 더 잡지만 오검출 초안이 늘고, 높이면 그 반대입니다.\n"
+            "바꾸면 같은 라운드 이름이라도 다시 추론해야 합니다."
+        )
+        form.addRow("최소 점수 (score_thr)", self.spn_score)
+        self.spn_maxv = QSpinBox()
+        self.spn_maxv.setRange(6, 300)
+        self.spn_maxv.setValue(int(DEFAULT.max_vertices))
+        self.spn_maxv.setToolTip(
+            "마스크 하나를 다각형으로 만들 때의 최대 점 수 (대기열 만들 때 적용).\n"
+            "작을수록 편집은 쉽지만 윤곽 정확도가 조금 떨어집니다. 기존 라운드에는 대기열을 다시 만들어야 반영됩니다."
+        )
+        form.addRow("다각형 최대 점 수", self.spn_maxv)
+        self.spn_eps = QDoubleSpinBox()
+        self.spn_eps.setDecimals(4)
+        self.spn_eps.setRange(0.0005, 0.05)
+        self.spn_eps.setSingleStep(0.0025)
+        self.spn_eps.setValue(float(DEFAULT.approx_eps_ratio))
+        self.spn_eps.setToolTip("단순화 강도 (둘레 대비 허용 오차). 클수록 점이 줄고 윤곽이 거칠어집니다. 보통 0.0025~0.01.")
+        form.addRow("단순화 강도 (eps)", self.spn_eps)
         self.chk_tta = QCheckBox("좌우반전 TTA 사용 (불확실도 정확, 추론 2배 느림)")
         self.chk_tta.setChecked(True)
         form.addRow("", self.chk_tta)
@@ -126,6 +163,19 @@ class AutoLabelTab(QWidget):
         self.btn_merge = QPushButton("병합하고 COCO 내보내기")
         self.btn_merge.clicked.connect(self._on_merge)
         lay3.addWidget(self.btn_merge)
+        row_t = QHBoxLayout()
+        row_t.addWidget(QLabel("학습 데이터셋 이름"))
+        self.ed_train_name = QLineEdit()
+        self.ed_train_name.setPlaceholderText("비우면 autolabel_<라운드 이름>")
+        row_t.addWidget(self.ed_train_name, 1)
+        lay3.addLayout(row_t)
+        self.btn_train = QPushButton("병합 → COCO → 학습용 데이터셋 만들고 학습 탭으로 보내기")
+        self.btn_train.setToolTip(
+            "data/dataset/<이름>/intensity + annotations/instances_Train.json 을 만들고 "
+            "'2. 모델 학습 > RTMDet 학습' 탭의 --dataset 값을 채워 그 탭으로 이동합니다."
+        )
+        self.btn_train.clicked.connect(self._on_to_train)
+        lay3.addWidget(self.btn_train)
         root.addWidget(box3)
 
         self.lbl_summary = QLabel()
@@ -145,6 +195,31 @@ class AutoLabelTab(QWidget):
         if path:
             edit.setText(path)
 
+    def _reload_rounds(self) -> None:
+        """data/autolabel/rounds 아래 라운드 목록 (대기열이 있는 것만, 최근 수정순)."""
+        root = AUTOLABEL_ROOT / "rounds"
+        found = []
+        if root.is_dir():
+            found = sorted(
+                (d for d in root.iterdir() if (d / "manifest.json").is_file()),
+                key=lambda d: d.stat().st_mtime,
+                reverse=True,
+            )
+        self.cmb_rounds.blockSignals(True)
+        self.cmb_rounds.clear()
+        self.cmb_rounds.addItem("(선택)")
+        for d in found:
+            self.cmb_rounds.addItem(d.name)
+        self.cmb_rounds.blockSignals(False)
+
+    def _on_round_picked(self, index: int) -> None:
+        if index > 0:
+            self.ed_round.setText(self.cmb_rounds.itemText(index))
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        self._reload_rounds()  # 탭을 열 때마다 목록 갱신
+        super().showEvent(event)
+
     def _round_name(self) -> str:
         return self.ed_round.text().strip()
 
@@ -160,7 +235,7 @@ class AutoLabelTab(QWidget):
         self.log_message.emit(f"[오토라벨링] {msg}")
 
     def _set_busy(self, busy: bool) -> None:
-        for b in (self.btn_predict, self.btn_merge):
+        for b in (self.btn_predict, self.btn_merge, self.btn_train):
             b.setEnabled(not busy)
 
     def _refresh_summary(self) -> None:
@@ -209,6 +284,9 @@ class AutoLabelTab(QWidget):
         if not self._steps:
             self._set_busy(False)
             self._refresh_summary()
+            after, self._after_steps = self._after_steps, None
+            if after is not None:
+                after()
             return
         self._current_step, args = self._steps.pop(0)
         proc = QProcess(self)
@@ -258,6 +336,7 @@ class AutoLabelTab(QWidget):
         if code != 0:
             self._log(f"{self._current_step} 실패 (종료 코드 {code}) — 위 로그를 확인하세요")
             self._steps.clear()
+            self._after_steps = None
             self._set_busy(False)
             self._refresh_summary()
             return
@@ -270,6 +349,22 @@ class AutoLabelTab(QWidget):
         self._set_busy(False)
 
     # ------------------------------------------------------------- actions
+
+    @staticmethod
+    def _cached_model_info(cache_dir: Path) -> dict:
+        """기존 예측 캐시를 만들 때의 설정 (score_thr, tta_hflip). 캐시가 없으면 빈 dict."""
+        try:
+            first = next(iter(sorted(cache_dir.glob("*.json"))), None)
+            if first is None:
+                return {}
+            return dict(json.loads(first.read_text(encoding="utf-8")).get("model", {}))
+        except (OSError, ValueError):
+            return {}
+
+    @classmethod
+    def _cached_score_thr(cls, cache_dir: Path) -> float | None:
+        thr = cls._cached_model_info(cache_dir).get("score_thr")
+        return None if thr is None else float(thr)
 
     def _on_predict_queue(self) -> None:
         images = self.ed_images.text().strip()
@@ -285,36 +380,63 @@ class AutoLabelTab(QWidget):
                 return
 
         paths = self._paths()
-        overwrite: list[str] = []
-        if (paths["round"] / "manifest.json").exists():
+        score_thr = round(float(self.spn_score.value()), 2)
+        info = self._cached_model_info(paths["cache"])
+        cached_thr = info.get("score_thr")
+        cached_tta = info.get("tta_hflip")
+        thr_changed = cached_thr is not None and abs(float(cached_thr) - score_thr) > 1e-9
+        tta_changed = cached_tta is not None and bool(cached_tta) != self.chk_tta.isChecked()
+        re_predict = thr_changed or tta_changed  # 추론 결과에 영향을 주는 설정이 바뀐 경우만 다시 추론
+        has_queue = (paths["round"] / "manifest.json").exists()
+
+        if re_predict:
+            what = []
+            if thr_changed:
+                what.append(f"최소 점수 {cached_thr} → {score_thr}")
+            if tta_changed:
+                what.append("TTA 설정")
+            if not has_queue:
+                answer = QMessageBox.question(
+                    self, "추론 설정이 바뀌었습니다",
+                    "이 라운드의 기존 추론 결과와 설정이 다릅니다 (" + ", ".join(what) + ").\n다시 추론할까요?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if answer != QMessageBox.StandardButton.Yes:
+                    return
+        if has_queue:
+            extra = "추론 설정이 바뀌어 다시 추론합니다.\n" if re_predict else "추론은 다시 하지 않고 기존 추론 결과로 대기열(다각형 포함)만 다시 만듭니다.\n"
             answer = QMessageBox.question(
                 self,
                 "대기열이 이미 있습니다",
-                f"'{self._round_name()}' 라운드에 이미 대기열이 있습니다.\n"
+                f"'{self._round_name()}' 라운드에 이미 대기열이 있습니다.\n{extra}"
                 "다시 만들면 지금까지 검수·수정한 내용이 모두 초안으로 돌아갑니다.\n\n계속할까요?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
-            overwrite = ["--overwrite"]
+        re_queue = has_queue
 
         predict_args = [
             "--images", images,
             "--cache", str(paths["cache"]),
             "--config", config,
             "--checkpoint", ckpt,
+            "--score-thr", str(score_thr),
         ]
         if not self.chk_tta.isChecked():
             predict_args.append("--no-tta")
-        if overwrite:
-            predict_args.append("--overwrite")  # 같은 이름 라운드를 다시 만들면 캐시도 새로 계산
+        if re_predict:
+            predict_args.append("--overwrite")  # 추론 설정이 바뀌면 캐시를 새로 계산
 
         queue_args = [
             "--images", images,
             "--cache", str(paths["cache"]),
             "--round", str(paths["round"]),
-            *overwrite,
+            "--max-vertices", str(int(self.spn_maxv.value())),
+            "--eps-ratio", f"{float(self.spn_eps.value()):.4f}",
+            *(["--overwrite"] if re_queue else []),
         ]
         self._run_steps(
             [
@@ -371,6 +493,48 @@ class AutoLabelTab(QWidget):
                 ("COCO 내보내기", self._module_args("export", "--dataset", str(paths["dataset"]))),
             ]
         )
+
+    def _train_name(self) -> str:
+        return self.ed_train_name.text().strip() or f"autolabel_{self._round_name()}"
+
+    def _on_to_train(self) -> None:
+        paths = self._paths()
+        if not (paths["round"] / "manifest.json").exists():
+            QMessageBox.warning(self, "오토라벨링", "대기열이 없습니다. 먼저 1단계를 실행하세요.")
+            return
+        name = self._train_name()
+        if not name.replace("_", "").replace("-", "").isalnum():
+            QMessageBox.warning(self, "오토라벨링", "데이터셋 이름은 영문/숫자/-/_ 만 쓰세요.")
+            return
+        out_dir = PROJECT_ROOT / "data" / "dataset" / name
+        extra: list[str] = []
+        if (out_dir / "intensity").exists() or (out_dir / "annotations").exists():
+            ans = QMessageBox.question(
+                self, "이미 있는 데이터셋",
+                f"{out_dir}\n에 학습용 데이터셋이 이미 있습니다.\n"
+                "intensity/ 와 annotations/ 를 지우고 다시 만들까요? (work_dir 등 다른 파일은 유지)",
+            )
+            if ans != QMessageBox.StandardButton.Yes:
+                return
+            extra.append("--overwrite")
+        merge_args = ["--round", str(paths["round"]), "--dataset", str(paths["dataset"])]
+        if self.chk_unreviewed.isChecked():
+            merge_args.append("--include-unreviewed")
+        self._after_steps = lambda: self._finish_to_train(out_dir)
+        self._run_steps(
+            [
+                ("병합", self._module_args("merge", *merge_args)),
+                ("COCO 내보내기", self._module_args("export", "--dataset", str(paths["dataset"]))),
+                (
+                    "학습용 데이터셋 만들기",
+                    self._module_args("to-train", "--dataset", str(paths["dataset"]), "--out", str(out_dir), *extra),
+                ),
+            ]
+        )
+
+    def _finish_to_train(self, out_dir: Path) -> None:
+        self._log(f"학습용 데이터셋 준비 완료: {out_dir}")
+        self.dataset_ready.emit(str(out_dir))
 
     # -------------------------------------------------------------- cleanup
 

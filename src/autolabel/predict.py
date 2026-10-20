@@ -215,6 +215,16 @@ def predict_folder(
     for n, image_path in enumerate(images, 1):
         out_path = cache_path_for(cache_dir, image_path)
         if out_path.exists() and not overwrite:
+            try:
+                old = json.loads(out_path.read_text(encoding="utf-8")).get("model", {})
+            except (OSError, ValueError):
+                old = {}
+            old_thr = old.get("score_thr")
+            if old_thr is not None and abs(float(old_thr) - float(cfg.score_thr)) > 1e-9:
+                raise RuntimeError(
+                    f"기존 캐시는 최소점수 {old_thr} 로 만들어졌는데 지금은 {cfg.score_thr} 입니다. "
+                    "점수 기준은 추론할 때 적용되므로 --overwrite 로 다시 추론하거나 새 라운드 이름을 쓰세요."
+                )
             written.append(out_path)
         else:
             img = read_image_like_app(image_path)

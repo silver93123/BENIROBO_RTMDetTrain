@@ -1,9 +1,13 @@
 """배치 추론 -> 예측 캐시 저장.
 
+추론은 앱의 다른 탭(app/core/detector.py)과 똑같은 경로를 탄다:
+  - 이미지는 cv2.IMREAD_GRAYSCALE 로 읽어 3채널로 복제한다.
+  - 검출기는 src.detection.create_detector() 로 만든다 (DetectorBase.infer).
+그래서 탭 3에서 보이는 검출 결과와 오토라벨링이 만드는 초안이 같다.
+
 핵심 설계: 예측 캐시와 최종 라벨 파일을 분리한다.
-캐시에는 score / RLE / TTA 일치도 / 모델 버전을 전부 담고,
+캐시에는 score / RLE / TTA 일치도 / 모델 버전 / 클래스 목록을 전부 담고,
 라벨 파일(labelme JSON)은 검수용으로 캐시에서 파생시킨다.
-캐시가 있으면 검수 UI는 재추론 없이 즉시 열린다.
 """
 
 from __future__ import annotations
@@ -12,6 +16,7 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Callable
 
 import cv2
 import numpy as np
@@ -19,51 +24,73 @@ import numpy as np
 from .config import DEFAULT, AutoLabelConfig
 from .mask_utils import encode_rle, greedy_match, mask_bbox
 
-IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp"}  # inference_test_tab.IMAGE_EXTS 와 동일
 
 
-class RTMDetPredictor:
-    """mmdet RTMDet-Ins 래퍼. 인스턴스 세그멘테이션 전용."""
+def build_detector(
+    config_path: str,
+    checkpoint_path: str,
+    device: str = "cuda:0",
+    score_threshold: float = DEFAULT.score_thr,
+    backend: str = "rtmdet_ins",
+):
+    """앱의 검출기 팩토리로 RTMDet-Ins 검출기를 만든다 (mmdet은 여기서 처음 로드)."""
+    from src.detection import create_detector  # 지연 임포트: 무거운 의존성
 
-    def __init__(self, config_path: str, checkpoint_path: str, device: str = "cuda:0"):
-        from mmdet.apis import init_detector  # 지연 임포트: 무거운 의존성
+    return create_detector(
+        {
+            "type": backend,
+            "params": {
+                "config": str(config_path),
+                "checkpoint": str(checkpoint_path),
+                "device": device,
+                "score_threshold": float(score_threshold),
+            },
+        }
+    )
 
+
+def read_image_like_app(path: Path) -> np.ndarray | None:
+    """app/core/detector.py 의 predict() 와 같은 방식으로 이미지를 읽는다.
+
+    그레이스케일로 읽은 뒤 3채널로 복제한다. 읽기 실패면 None.
+    """
+    gray = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    if gray is None:
+        return None
+    return np.stack([gray, gray, gray], axis=-1)
+
+
+class DetectorPredictor:
+    """DetectorBase 구현체를 감싸 오토라벨링용 인스턴스 dict를 만든다.
+
+    detector 는 `infer(image) -> list[DetectionResult]` 와 `class_names` 만 있으면 된다
+    (테스트에서는 가짜 검출기를 주입할 수 있다).
+    """
+
+    def __init__(self, detector: Any, config_path: str = "", checkpoint_path: str = "", tag: str = ""):
+        self.detector = detector
         self.config_path = str(config_path)
         self.checkpoint_path = str(checkpoint_path)
-        self.device = device
-        self.model = init_detector(self.config_path, self.checkpoint_path, device=device)
-        self.classes = list(self.model.dataset_meta["classes"])
+        self.classes = [str(c) for c in detector.class_names]
+        self.tag = tag or (Path(checkpoint_path).stem if checkpoint_path else "unknown")
 
-    @property
-    def tag(self) -> str:
-        """체크포인트 파일명을 모델 버전 태그로 사용."""
-        return Path(self.checkpoint_path).stem
+    def _infer(self, img_bgr: np.ndarray, max_instances: int) -> list[dict]:
+        results = self.detector.infer(np.ascontiguousarray(img_bgr))
+        # DetectorBase 규약상 score 내림차순이지만 방어적으로 한 번 더 정렬한다.
+        results = sorted(results, key=lambda r: -float(r.score))[:max_instances]
 
-    def _raw_infer(self, img_bgr: np.ndarray, score_thr: float, max_instances: int) -> list[dict]:
-        from mmdet.apis import inference_detector
-
-        result = inference_detector(self.model, img_bgr)
-        pred = result.pred_instances
-
-        scores = pred.scores.detach().cpu().numpy()
-        labels = pred.labels.detach().cpu().numpy()
-        masks = pred.masks.detach().cpu().numpy().astype(bool)
-
-        order = np.argsort(-scores)[:max_instances]
         out: list[dict] = []
-        for idx in order:
-            score = float(scores[idx])
-            if score < score_thr:
-                continue
-            mask = masks[idx]
+        for r in results:
+            mask = np.asarray(r.mask, dtype=bool)
             bbox = mask_bbox(mask)
             if bbox is None:
                 continue
             out.append(
                 {
-                    "label_id": int(labels[idx]),
-                    "label": self.classes[int(labels[idx])],
-                    "score": score,
+                    "label_id": int(r.class_id),
+                    "label": str(r.class_name),
+                    "score": float(r.score),
                     "bbox": bbox,
                     "area": int(np.count_nonzero(mask)),
                     "mask": mask,
@@ -73,18 +100,19 @@ class RTMDetPredictor:
 
     def predict(self, img_bgr: np.ndarray, cfg: AutoLabelConfig = DEFAULT) -> list[dict]:
         """인스턴스 리스트 반환. TTA를 켜면 각 인스턴스에 tta_iou가 붙는다."""
-        instances = self._raw_infer(img_bgr, cfg.score_thr, cfg.max_instances)
+        instances = self._infer(img_bgr, cfg.max_instances)
 
         if not cfg.use_tta_hflip:
             for inst in instances:
                 inst["tta_iou"] = None
             return instances
 
-        flipped = self._raw_infer(img_bgr[:, ::-1], cfg.score_thr, cfg.max_instances)
+        # 음수 stride 배열은 torch 변환에서 깨질 수 있으므로 연속 배열로 만든다.
+        flipped = self._infer(np.ascontiguousarray(img_bgr[:, ::-1]), cfg.max_instances)
         for inst in flipped:
-            inst["mask"] = inst["mask"][:, ::-1]  # 원본 좌표계로 되돌림
+            inst["mask"] = np.ascontiguousarray(inst["mask"][:, ::-1])  # 원본 좌표계로 복원
 
-        matched, unmatched_a, _ = greedy_match(
+        matched, unmatched, _ = greedy_match(
             [i["mask"] for i in instances],
             [i["mask"] for i in flipped],
             min_iou=cfg.tta_match_iou,
@@ -93,7 +121,7 @@ class RTMDetPredictor:
             inst["tta_iou"] = None
         for i, _j, iou in matched:
             instances[i]["tta_iou"] = float(iou)
-        for i in unmatched_a:
+        for i in unmatched:
             # 반전 추론에서 대응 객체를 못 찾음 = 불안정한 검출
             instances[i]["tta_iou"] = 0.0
         return instances
@@ -150,16 +178,18 @@ def load_cache(path: Path) -> dict:
 
 
 def list_images(image_dir: Path) -> list[Path]:
-    return sorted(p for p in image_dir.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)
+    return sorted(
+        p for p in Path(image_dir).iterdir() if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES
+    )
 
 
 def predict_folder(
     image_dir: Path,
     cache_dir: Path,
-    predictor: RTMDetPredictor,
+    predictor: DetectorPredictor,
     cfg: AutoLabelConfig = DEFAULT,
     overwrite: bool = False,
-    progress=print,
+    progress: Callable[[str], None] = print,
 ) -> list[Path]:
     """폴더 전체를 추론해서 예측 캐시를 남긴다."""
     image_dir = Path(image_dir)
@@ -170,33 +200,45 @@ def predict_folder(
         "config": predictor.config_path,
         "checkpoint": predictor.checkpoint_path,
         "tag": predictor.tag,
+        "classes": predictor.classes,
         "score_thr": cfg.score_thr,
         "tta_hflip": cfg.use_tta_hflip,
     }
 
     images = list_images(image_dir)
+    if not images:
+        raise RuntimeError(f"이미지가 없습니다: {image_dir}")
+
     written: list[Path] = []
     started = time.time()
 
     for n, image_path in enumerate(images, 1):
         out_path = cache_path_for(cache_dir, image_path)
         if out_path.exists() and not overwrite:
+            try:
+                old = json.loads(out_path.read_text(encoding="utf-8")).get("model", {})
+            except (OSError, ValueError):
+                old = {}
+            old_thr = old.get("score_thr")
+            if old_thr is not None and abs(float(old_thr) - float(cfg.score_thr)) > 1e-9:
+                raise RuntimeError(
+                    f"기존 캐시는 최소점수 {old_thr} 로 만들어졌는데 지금은 {cfg.score_thr} 입니다. "
+                    "점수 기준은 추론할 때 적용되므로 --overwrite 로 다시 추론하거나 새 라운드 이름을 쓰세요."
+                )
             written.append(out_path)
-            continue
+        else:
+            img = read_image_like_app(image_path)
+            if img is None:
+                progress(f"[skip] 읽기 실패: {image_path.name}")
+            else:
+                instances = predictor.predict(img, cfg)
+                payload = _cache_payload(image_path, img.shape[0], img.shape[1], instances, model_info)
+                with open(out_path, "w", encoding="utf-8") as fp:
+                    json.dump(payload, fp, ensure_ascii=False)
+                written.append(out_path)
 
-        img = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
-        if img is None:
-            progress(f"[skip] 읽기 실패: {image_path.name}")
-            continue
-
-        instances = predictor.predict(img, cfg)
-        payload = _cache_payload(image_path, img.shape[0], img.shape[1], instances, model_info)
-        with open(out_path, "w", encoding="utf-8") as fp:
-            json.dump(payload, fp, ensure_ascii=False)
-        written.append(out_path)
-
-        if n % 20 == 0 or n == len(images):
-            elapsed = time.time() - started
-            progress(f"[predict] {n}/{len(images)}  ({elapsed:.1f}s)")
+        # 탭의 진행률 바가 이 형식을 파싱한다: "[predict] n/N"
+        if n % 10 == 0 or n == len(images):
+            progress(f"[predict] {n}/{len(images)}  ({time.time() - started:.1f}s)")
 
     return written
