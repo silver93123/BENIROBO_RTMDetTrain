@@ -74,6 +74,11 @@ class RefineParams:
     coarse_scale: float = 0.5   # 1단계 탐색 해상도 배율
     coarse_phi_step_deg: float = 15.0
     top_k: int = 3
+    # 깊이 기울기로 phi(축이 카메라 쪽으로 기울어진 각)를 제한한다. 실루엣만으로는 phi와 -phi가
+    # 구분되지 않아(정사영은 z 반전에 불변) 어느 끝이 카메라에 가까운지 알 수 없지만, 깊이 평면은 안다.
+    depth_phi: bool = True
+    phi_depth_tol_deg: float = 12.0   # 깊이로 구한 phi에서 이 범위 안의 phi 템플릿만 시도
+    phi_depth_min_pts: int = 60       # 기울기를 구할 최소 inlier 점 수 (미만이면 제한 없이 전체 탐색)
 
     fill_invalid_px: int = 4    # 깊이 무효 픽셀은 원 검출 마스크에서 이 거리 안일 때만 채움
     min_score: float = 0.5      # 이보다 낮으면 보정 포기(원본 유지)
@@ -406,6 +411,31 @@ def refine_mask(det_mask: np.ndarray, pcd_mm: np.ndarray, valid_mask: np.ndarray
         return _fail(det, "plane_fit_failed", n_before)
     pa, pb, pc = coef
 
+    # 물체 평면 inlier 점으로 카메라 좌표계의 기울기 dz/dX, dz/dY 를 구한다 (phi 부호/크기의 근거).
+    # 픽셀 좌표가 아니라 (X, Y, Z) mm 로 적합해야 시야각에 따른 왜곡 없이 축 방향 기울기가 나온다.
+    depth_grad = None
+    if p.depth_phi:
+        inl = np.abs(z_all[ys, xs] - (pa * (xs - u0) + pb * (ys - v0) + pc)) < p.depth_tol_mm
+        if int(inl.sum()) >= p.phi_depth_min_pts:
+            xx = pcd_mm[ys[inl], xs[inl], 0].astype(np.float64)
+            yy = pcd_mm[ys[inl], xs[inl], 1].astype(np.float64)
+            zz = z_all[ys[inl], xs[inl]].astype(np.float64)
+            if np.all(np.isfinite(xx)) and np.all(np.isfinite(yy)) and np.ptp(xx) + np.ptp(yy) > 1e-6:
+                g, *_ = np.linalg.lstsq(np.stack([xx, yy, np.ones_like(xx)], axis=1), zz, rcond=None)
+                if np.all(np.isfinite(g[:2])):
+                    depth_grad = (float(g[0]), float(g[1]))
+
+    def _phi_candidates(th: float, phi_idx_all: list[int]) -> list[int]:
+        """이 theta(축의 이미지 평면 방향)에서 깊이가 말하는 phi 근처의 phi 인덱스만."""
+        if depth_grad is None:
+            return phi_idx_all
+        t = math.radians(th)
+        phi_d = math.degrees(math.atan(depth_grad[0] * math.cos(t) + depth_grad[1] * math.sin(t)))
+        near = [pi for pi in phi_idx_all if abs(float(bank.phi_deg[pi]) - phi_d) <= p.phi_depth_tol_deg]
+        if near:
+            return near
+        return [min(phi_idx_all, key=lambda pi: abs(float(bank.phi_deg[pi]) - phi_d))]
+
     # ---- 2. 스케일/패치/캔버스 --------------------------------------------
     # 코어 중심에서의 평면 깊이로 px/mm를 정한다 (코어는 아래에서 구하므로 우선 마스크 중심 사용)
     z_c = float(pc)
@@ -503,8 +533,8 @@ def refine_mask(det_mask: np.ndarray, pcd_mm: np.ndarray, valid_mask: np.ndarray
 
     cands = []  # (score, phi_idx, theta, x, y) -- 좌표는 coarse 캔버스 기준 좌상단
     if f_c.shape[0] >= pc_patch and f_c.shape[1] >= pc_patch:
-        for pi in phi_idx_c:
-            for th in thetas:
+        for th in thetas:
+            for pi in _phi_candidates(th, phi_idx_c):
                 tpl = bank.render(pi, th, px_per_mm * ws, pc_patch)
                 sm = _score_map(f_c, bad_c, det_c, exp_c, tpl, f_sum_c, p)
                 if sm is None:

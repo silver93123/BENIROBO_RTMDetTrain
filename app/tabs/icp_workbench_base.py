@@ -24,6 +24,7 @@
 """
 from __future__ import annotations
 
+import dataclasses
 import sys
 import tempfile
 import json
@@ -37,6 +38,7 @@ from PyQt6.QtWidgets import (
     QGroupBox, QGridLayout, QDoubleSpinBox, QSpinBox, QCheckBox, QTabWidget,
 )
 
+from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd
 from app.core.detector import Detection
 from app.core.config_patcher import find_latest_best_checkpoint
 from app.core.paths import DEFAULT_CONFIG_PATH, DEFAULT_CAD_DIR
@@ -46,6 +48,7 @@ from app.core import icp_runner
 from app.core.icp_runner import ICPResult, ICPParams
 from app.core.registration import AVAILABLE_REGISTRATION_TYPES
 from app.tabs.icp_pipelines import AVAILABLE_ICP_PIPELINES
+from src.detection.mask_refine import RefineParams, get_bank, refine_mask
 
 DEFAULT_SCORE_THRESHOLD = 0.3
 CAD_EXTS = {".stl", ".ply", ".obj"}
@@ -57,6 +60,10 @@ class ICPWorkbenchTab(QWidget):
     #: 로그 메시지 접두어. 서브클래스가 오버라이드해서 탭을 구분한다
     #: (예: "ICP 탭" vs "ICP(TCP) 탭").
     LOG_PREFIX = "ICP 워크벤치"
+
+    #: True인 서브클래스만 "2D 형상 보정" 옵션이 보인다 (CAD 투영 실루엣 + 깊이로 마스크를 다듬은 뒤 ICP).
+    #: 점군/유효마스크가 메모리에 있으면 어떤 프레임 획득 방식이든 동작하지만, 현재는 세션 탭만 켠다.
+    SUPPORTS_MASK_REFINE = False
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -70,7 +77,8 @@ class ICPWorkbenchTab(QWidget):
         # 표준편차 정보가 없음). 다중 프레임 촬영 탭(LiveCaptureICPTab)만
         # 채운다.
         self._pcd_std: np.ndarray | None = None
-        self._last_detections: list[Detection] = []
+        self._last_detections: list[Detection] = []   # ICP에 실제로 쓰이는 검출 (보정 켜면 보정본)
+        self._raw_detections: list[Detection] = []    # 모델 원본 출력 (보정 토글/재적용 때 다시 여기서 만든다)
         self._last_icp_results: list[ICPResult] = []
         self._cad_pcd = None
         self._cad_visible_normal = None
@@ -187,6 +195,39 @@ class ICPWorkbenchTab(QWidget):
         run_row.addWidget(self.thresh_label)
         run_row.addStretch(1)
         center.addLayout(run_row)
+
+        # --- 2D 형상 보정 (선택) -------------------------------------------------
+        self.refine_row = QWidget()
+        refine_lay = QHBoxLayout(self.refine_row)
+        refine_lay.setContentsMargins(0, 0, 0, 0)
+        self.chk_refine = QCheckBox("2D 형상 보정 (CAD 투영 + 깊이)")
+        self.chk_refine.setToolTip(
+            "2D 검출 직후, 마스크를 선택한 CAD의 투영 실루엣과 깊이에 맞춰 다듬은 뒤 ICP에 넘깁니다.\n"
+            "이웃 번짐/끊김을 줄여 ICP 대상 점군을 깨끗하게 만듭니다. 끄면 모델 원본 마스크를 씁니다."
+        )
+        self.chk_refine.toggled.connect(lambda _=None: self._on_refine_option_changed())
+        refine_lay.addWidget(self.chk_refine)
+        refine_lay.addWidget(QLabel("깊이 허용(mm)"))
+        self.spin_refine_depth = QDoubleSpinBox()
+        self.spin_refine_depth.setRange(1.0, 50.0)
+        self.spin_refine_depth.setSingleStep(1.0)
+        self.spin_refine_depth.setValue(RefineParams().depth_tol_mm)
+        self.spin_refine_depth.setToolTip("물체 평면에서 이 거리 이내의 점을 물체로 인정. 센서 노이즈가 크면 키운다.")
+        refine_lay.addWidget(self.spin_refine_depth)
+        refine_lay.addWidget(QLabel("최소 score"))
+        self.spin_refine_score = QDoubleSpinBox()
+        self.spin_refine_score.setRange(0.0, 1.0)
+        self.spin_refine_score.setSingleStep(0.05)
+        self.spin_refine_score.setValue(RefineParams().min_score)
+        self.spin_refine_score.setToolTip("템플릿 적합 점수가 이 값 미만이면 보정을 포기하고 원본 마스크를 유지.")
+        refine_lay.addWidget(self.spin_refine_score)
+        self.btn_refine_apply = QPushButton("보정 재적용")
+        self.btn_refine_apply.setToolTip("재추론 없이 현재 검출 결과에 보정만 다시 적용 (파라미터 튜닝/CAD 변경용)")
+        self.btn_refine_apply.clicked.connect(lambda _=None: self._on_refine_option_changed(force=True))
+        refine_lay.addWidget(self.btn_refine_apply)
+        refine_lay.addStretch(1)
+        self.refine_row.setVisible(self.SUPPORTS_MASK_REFINE)
+        center.addWidget(self.refine_row)
 
         params_container = QWidget()
         params_layout = QVBoxLayout(params_container)
@@ -485,6 +526,7 @@ class ICPWorkbenchTab(QWidget):
             self._valid_mask = None
             self._pcd_std = None
         self._last_detections = []
+        self._raw_detections = []
         self._last_icp_results = []
         self._clear_result_panel()
         self.btn_open_viewer.setEnabled(False)
@@ -534,7 +576,8 @@ class ICPWorkbenchTab(QWidget):
                 f"{n_with_pose}/{len(detections)}건 (나머지는 fallback 정합 알고리즘 사용)"
             )
 
-        self._last_detections = detections
+        self._raw_detections = detections
+        self._last_detections = self._maybe_refine(detections)
         self.image_viewer.set_detections(self._last_detections)
         self._last_icp_results = []
         self._clear_result_panel()
@@ -543,6 +586,70 @@ class ICPWorkbenchTab(QWidget):
         self.log_message.emit(f"[{self.LOG_PREFIX}] {active_tab.pipeline_name} 검출 완료: {len(detections)}건")
         if not detections:
             QMessageBox.information(self, "알림", "마스크가 있는 검출 결과가 없습니다.")
+
+    # ----------------------------------------------------------- 2D 형상 보정
+    def _refine_enabled(self) -> bool:
+        return self.SUPPORTS_MASK_REFINE and self.chk_refine.isChecked()
+
+    def _maybe_refine(self, detections: list[Detection]) -> list[Detection]:
+        """보정이 켜져 있으면 마스크를 다듬은 Detection 리스트를, 아니면 입력을 그대로 반환한다.
+
+        어떤 이유로든 보정이 불가능하면(CAD 미선택, 점군 없음 등) 팝업으로 알리고 원본을 반환한다
+        -> ICP는 항상 돌릴 수 있다. 원본 리스트(_raw_detections)는 건드리지 않는다.
+        """
+        if not self._refine_enabled() or not detections:
+            return detections
+        try:
+            cad_index = self.cad_combo.currentIndex()
+            if cad_index < 0:
+                raise ValueError("형상 보정에 쓸 CAD 모델을 선택하세요 (좌측 'CAD 모델').")
+            if self._pcd_organized is None or self._valid_mask is None:
+                raise ValueError("이 프레임에 점군/유효마스크가 없습니다.")
+            bank = get_bank(self.cad_combo.itemData(cad_index))
+            intr = estimate_intrinsics_from_organized_pcd(self._pcd_organized, self._valid_mask)
+            params = dataclasses.replace(
+                RefineParams(),
+                depth_tol_mm=float(self.spin_refine_depth.value()),
+                min_score=float(self.spin_refine_score.value()),
+            )
+            out: list[Detection] = []
+            n_ok = 0
+            for i, det in enumerate(detections):
+                if det.mask is None:
+                    out.append(det)
+                    continue
+                res = refine_mask(det.mask, self._pcd_organized, self._valid_mask, intr, bank, params)
+                self.log_message.emit(f"[{self.LOG_PREFIX}]  obj{i} {res.summary()}")
+                if res.ok:
+                    n_ok += 1
+                    ys, xs = np.nonzero(res.mask)
+                    bbox = (float(xs.min()), float(ys.min()), float(xs.max()) + 1, float(ys.max()) + 1)
+                    out.append(dataclasses.replace(det, mask=res.mask, bbox=bbox))  # initial_pose 등은 유지
+                else:
+                    out.append(det)
+            self.log_message.emit(
+                f"[{self.LOG_PREFIX}] 2D 형상 보정: {n_ok}/{len(detections)}건 적용 "
+                f"(depth_tol={params.depth_tol_mm:.1f}mm, min_score={params.min_score:.2f}, CAD aspect {bank.aspect:.1f})"
+            )
+            return out
+        except Exception as exc:  # noqa: BLE001
+            self.log_message.emit(f"[{self.LOG_PREFIX}] 2D 형상 보정 실패: {exc}")
+            QMessageBox.warning(self, "2D 형상 보정 실패", f"{exc}\n\n원본 마스크를 사용합니다.")
+            return detections
+
+    def _on_refine_option_changed(self, force: bool = False) -> None:
+        """보정 체크 토글/재적용: 원본 검출에서 다시 만들고, 낡은 ICP 결과는 지운다."""
+        if not self._raw_detections:
+            return
+        if not force and not self.SUPPORTS_MASK_REFINE:
+            return
+        self._last_detections = self._maybe_refine(self._raw_detections)
+        self.image_viewer.set_detections(self._last_detections)
+        self._last_icp_results = []
+        self._clear_result_panel()
+        self.btn_open_viewer.setEnabled(False)
+        state = "보정 마스크" if self._refine_enabled() else "원본 마스크"
+        self.log_message.emit(f"[{self.LOG_PREFIX}] {state}로 갱신 - ICP를 다시 실행하세요")
 
     # -------------------------------------------------------------- ICP 실행
     def _on_run_icp(self) -> None:
