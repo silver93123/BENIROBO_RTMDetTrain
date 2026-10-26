@@ -693,7 +693,7 @@ def colorize_by_height(points_m: np.ndarray, colormap_name: str = "viridis",
     percentile(1~99)로 정규화해서 소수의 극단값(flying pixel 등) 때문에
     전체 색 분포가 한쪽으로 쏠리는 걸 방지한다.
     """
-    import matplotlib.cm as cm
+    import matplotlib
 
     if len(points_m) == 0:
         return np.empty((0, 3), dtype=np.float64)
@@ -704,7 +704,8 @@ def colorize_by_height(points_m: np.ndarray, colormap_name: str = "viridis",
         lo, hi = values.min(), values.max() + 1e-9
     normalized = np.clip((values - lo) / (hi - lo), 0.0, 1.0)
 
-    cmap = cm.get_cmap(colormap_name)
+    # matplotlib.cm.get_cmap은 3.9에서 제거됨 -> matplotlib.colormaps[...] (3.5+ 지원)
+    cmap = matplotlib.colormaps[colormap_name]
     return cmap(normalized)[:, :3]  # RGBA -> RGB
 
 

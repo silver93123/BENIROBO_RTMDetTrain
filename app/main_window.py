@@ -16,19 +16,21 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QTreeWidget,
-    QTreeWidgetItem, QStackedWidget, QLabel,
+    QTreeWidgetItem, QStackedWidget, QLabel, QMessageBox,
 )
 from PyQt6.QtCore import Qt
 
 from app.tabs.data_collection_tab import DataCollectionTab
 from app.tabs.data_session_tab import DataSessionTab
 from app.tabs.inference_test_tab import InferenceTestTab
-from app.tabs.session_icp_tab import SessionICPTab
+from app.tabs.icp_detection_test_tab import ICPDetectionTestTab
 from app.tabs.live_capture_icp_tab import LiveCaptureICPTab
 from app.tabs.live_label_generation_tab import LiveLabelGenerationTab
 from app.tabs.rothead_only_icp_tab import RotHeadOnlyICPTab
 from app.tabs.foundationpose_only_icp_tab import FoundationPoseOnlyICPTab
 from app.tabs.pvnet_label_generation_tab import PVNetLabelGenerationTab
+from app.tabs.settings_tab import SettingsTab
+from app.tabs.tcp_server_tab import TcpServerTab
 from app.tabs.manual_labeling_tab import ManualLabelingTab
 from app.tabs.training_pipelines import AVAILABLE_TRAINING_PIPELINES
 from app.widgets.log_console import LogConsole
@@ -116,11 +118,16 @@ class MainWindow(QMainWindow):
         self.inference_tab = InferenceTestTab()
         self._add_leaf("3. 오프라인 검출 테스트", self.inference_tab)
 
-        self.icp_tab = SessionICPTab()
-        self._add_leaf("4. ICP 정합 테스트", self.icp_tab)
+        self.icp_tab = ICPDetectionTestTab()
+        self._add_leaf("4. ICP 검출 테스트", self.icp_tab)
 
+        # 5번: 로봇 TCP 요청을 기다렸다가 촬영 -> 검출 -> 정합 -> 좌표 응답 (값은 12번 설정 탭에서 관리)
+        self.tcp_tab = TcpServerTab()
+        self._add_leaf("5. ICP 정합 TCP 서버", self.tcp_tab)
+
+        # 기존 5번(실시간 촬영 + 파라미터를 바꿔 가며 눈으로 확인하는 용도)은 5-1로 유지.
         self.icp_tcp_tab = LiveCaptureICPTab()
-        self._add_leaf("5. ICP 정합테스트(TCP)", self.icp_tcp_tab)
+        self._add_leaf("5-1. 실시간 촬영 ICP 테스트", self.icp_tcp_tab)
 
         self.label_gen_tab = LiveLabelGenerationTab()
         self._add_leaf("6. 회전 라벨 생성", self.label_gen_tab)
@@ -140,6 +147,10 @@ class MainWindow(QMainWindow):
         self.autolabel_tab = AutoLabelTab()
         self._add_leaf("11. 2D 오토라벨링", self.autolabel_tab)
 
+        # 설정값(ICP/검출/카메라/TCP)은 여기서 수정·저장 -> data/app_settings.json, 재시작해도 유지.
+        self.settings_tab = SettingsTab()
+        self._add_leaf("12. 설정", self.settings_tab)
+
         self.nav_tree.currentItemChanged.connect(self._on_nav_changed)
 
         self.log_console = LogConsole()
@@ -152,6 +163,7 @@ class MainWindow(QMainWindow):
             tab.log_message.connect(self.log_console.append_log)
         self.inference_tab.log_message.connect(self.log_console.append_log)
         self.icp_tab.log_message.connect(self.log_console.append_log)
+        self.tcp_tab.log_message.connect(self.log_console.append_log)
         self.icp_tcp_tab.log_message.connect(self.log_console.append_log)
         self.label_gen_tab.log_message.connect(self.log_console.append_log)
         self.rothead_test_tab.log_message.connect(self.log_console.append_log)
@@ -159,6 +171,7 @@ class MainWindow(QMainWindow):
         self.foundationpose_test_tab.log_message.connect(self.log_console.append_log)
         self.pvnet_label_gen_tab.log_message.connect(self.log_console.append_log)
         self.autolabel_tab.log_message.connect(self.log_console.append_log)
+        self.settings_tab.log_message.connect(self.log_console.append_log)
 
         # 데이터 수집 탭에서 수집이 끝나면 -> RTMDet 학습 탭 / ICP 탭(세션 기반)에 바로 연동.
         # LiveCaptureICPTab(탭5)은 세션이 아니라 카메라로 즉시 촬영하는 개념이라
@@ -196,6 +209,27 @@ class MainWindow(QMainWindow):
         layout.addWidget(title)
         layout.addStretch(1)
         return bar
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt override 관례
+        # 저장 안 한 설정이 있으면 물어본다 (재시작 후 '마지막으로 저장한 값'이 적용되므로 조용히 버리지 않는다).
+        if self.settings_tab.has_unsaved_changes():
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Question)
+            box.setWindowTitle("저장되지 않은 설정")
+            box.setText("'12. 설정' 탭에 저장하지 않은 변경이 있습니다.\n종료하기 전에 저장할까요?")
+            save_btn = box.addButton("저장하고 종료", QMessageBox.ButtonRole.AcceptRole)
+            box.addButton("저장하지 않고 종료", QMessageBox.ButtonRole.DestructiveRole)
+            cancel_btn = box.addButton("취소", QMessageBox.ButtonRole.RejectRole)
+            box.exec()
+            clicked = box.clickedButton()
+            if clicked is cancel_btn:
+                event.ignore()
+                return
+            if clicked is save_btn and not self.settings_tab.save():
+                event.ignore()   # 검증/쓰기 실패 -> 종료하지 않고 설정 탭에서 해결하게 한다
+                return
+        self.tcp_tab.shutdown()   # TCP 서버 정지 + 켜둔 카메라 해제
+        super().closeEvent(event)
 
     def _on_nav_changed(self, current: QTreeWidgetItem | None, previous: QTreeWidgetItem | None) -> None:
         if current is None:

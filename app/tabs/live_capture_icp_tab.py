@@ -1,10 +1,10 @@
-"""탭 5: ICP 정합테스트(TCP) - 실시간 촬영 기반.
+"""탭 5-1: 실시간 촬영 ICP 테스트 - 실시간 촬영 기반.
 
 세션 폴더 대신 카메라로 즉시 촬영해서 바로 검출+ICP까지 돌린다.
 공통 로직(파이프라인 실행, ICP/FGR 파라미터, 결과 패널, 3D 뷰어)은
 ICPWorkbenchTab에 있고, 이 파일은 "프레임을 어떻게 얻는지"(카메라 타입
-선택 + 촬영 버튼)만 구현한다 - app/tabs/session_icp_tab.py와 정확히
-같은 확장 지점을 쓴다.
+선택 + 촬영 버튼)만 구현한다 - ICPWorkbenchTab의 _build_acquisition_panel()
+확장 지점을 쓴다.
 
 포인트클라우드 품질 개선: src.camera.create_camera()의 다중 프레임 평균화
 (configs/camera_config_helios.yaml / camera_config_femto.yaml의 `averaging`
@@ -42,7 +42,7 @@ DEFAULT_MIN_VALID_RATIO = 0.6  # config yaml 기본값과 동일 - 이 탭에서
 
 
 class LiveCaptureICPTab(ICPWorkbenchTab):
-    LOG_PREFIX = "ICP(TCP) 탭"
+    LOG_PREFIX = "ICP(실시간) 탭"
 
     def __init__(self, parent=None):
         self._capture_history: dict[str, dict] = {}  # label -> {image_path, pcd, valid_mask}
@@ -104,7 +104,7 @@ class LiveCaptureICPTab(ICPWorkbenchTab):
         self.btn_save_session = QPushButton("세션으로 저장")
         self.btn_save_session.setToolTip(
             "현재 촬영본을 data/dataset/ 밑에 표준 세션 폴더로 저장 - "
-            "이후 '4. ICP 정합 테스트'나 학습 파이프라인에서 재사용 가능"
+            "이후 '4. ICP 검출 테스트'나 학습 파이프라인에서 재사용 가능"
         )
         self.btn_save_session.clicked.connect(self._on_save_as_session)
         self.btn_save_session.setEnabled(False)
@@ -200,5 +200,5 @@ class LiveCaptureICPTab(ICPWorkbenchTab):
         QMessageBox.information(
             self, "저장 완료",
             f"세션 폴더로 저장했습니다:\n{session_dir}\n\n"
-            "'4. ICP 정합 테스트'나 학습 파이프라인에서 이 폴더를 그대로 불러올 수 있습니다."
+            "'4. ICP 검출 테스트'나 학습 파이프라인에서 이 폴더를 그대로 불러올 수 있습니다."
         )
