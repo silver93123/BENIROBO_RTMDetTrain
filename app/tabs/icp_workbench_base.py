@@ -48,7 +48,7 @@ from app.core import icp_runner
 from app.core.icp_runner import ICPResult, ICPParams
 from app.core.registration import AVAILABLE_REGISTRATION_TYPES
 from app.tabs.icp_pipelines import AVAILABLE_ICP_PIPELINES
-from src.detection.mask_refine import RefineParams, get_bank, refine_mask
+from src.detection.mask_refine import RefineParams, get_bank, refine_masks
 
 DEFAULT_SCORE_THRESHOLD = 0.3
 CAD_EXTS = {".stl", ".ply", ".obj"}
@@ -612,21 +612,18 @@ class ICPWorkbenchTab(QWidget):
                 depth_tol_mm=float(self.spin_refine_depth.value()),
                 min_score=float(self.spin_refine_score.value()),
             )
-            out: list[Detection] = []
+            out: list[Detection] = list(detections)
             n_ok = 0
-            for i, det in enumerate(detections):
-                if det.mask is None:
-                    out.append(det)
-                    continue
-                res = refine_mask(det.mask, self._pcd_organized, self._valid_mask, intr, bank, params)
+            with_mask = [i for i, d in enumerate(detections) if d.mask is not None]
+            batch = refine_masks([detections[i].mask for i in with_mask],
+                                 self._pcd_organized, self._valid_mask, intr, bank, params)
+            for i, res in zip(with_mask, batch):
                 self.log_message.emit(f"[{self.LOG_PREFIX}]  obj{i} {res.summary()}")
                 if res.ok:
                     n_ok += 1
                     ys, xs = np.nonzero(res.mask)
                     bbox = (float(xs.min()), float(ys.min()), float(xs.max()) + 1, float(ys.max()) + 1)
-                    out.append(dataclasses.replace(det, mask=res.mask, bbox=bbox))  # initial_pose 등은 유지
-                else:
-                    out.append(det)
+                    out[i] = dataclasses.replace(detections[i], mask=res.mask, bbox=bbox)  # initial_pose 등은 유지
             self.log_message.emit(
                 f"[{self.LOG_PREFIX}] 2D 형상 보정: {n_ok}/{len(detections)}건 적용 "
                 f"(depth_tol={params.depth_tol_mm:.1f}mm, min_score={params.min_score:.2f}, CAD aspect {bank.aspect:.1f})"

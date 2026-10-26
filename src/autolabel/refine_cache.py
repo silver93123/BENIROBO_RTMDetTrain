@@ -22,7 +22,7 @@ from typing import Callable
 import numpy as np
 
 from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd
-from src.detection.mask_refine import RefineParams, get_bank, load_session_arrays, refine_mask
+from src.detection.mask_refine import RefineParams, get_bank, load_session_arrays, refine_masks
 
 from .mask_utils import decode_rle, encode_rle, mask_bbox
 from .predict import cache_path_for, list_images, load_cache
@@ -70,6 +70,7 @@ def refine_cache_folder(
                 if n_no_data <= 3:
                     progress(f"[warn] {image_path.name}: 보정 생략 ({data_err})")
 
+            decoded: list[tuple[dict, np.ndarray]] = []
             for inst in cache["instances"]:
                 n_inst += 1
                 inst["rle_raw"] = inst["rle"]  # 원본 보존 (디버깅/비교용)
@@ -80,7 +81,10 @@ def refine_cache_folder(
                 if mask.shape != valid.shape:
                     inst["refine"] = {"ok": False, "reason": "shape_mismatch"}
                     continue
-                res = refine_mask(mask, pcd, valid, intr, bank, params)
+                decoded.append((inst, mask))
+            # 한 이미지의 인스턴스를 함께 보정해야 마스크끼리 겹친 픽셀을 정리할 수 있다
+            batch = refine_masks([m for _, m in decoded], pcd, valid, intr, bank, params) if decoded else []
+            for (inst, mask), res in zip(decoded, batch):
                 info = {"ok": bool(res.ok), "reason": res.reason, "score": round(float(res.score), 4),
                         "phi_deg": round(float(res.phi_deg), 1), "theta_deg": round(float(res.theta_deg), 1),
                         "area_before": int(res.n_before), "area_after": int(res.n_after)}

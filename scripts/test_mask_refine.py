@@ -19,7 +19,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.detection.mask_refine import RefineParams, SilhouetteBank, refine_mask  # noqa: E402
+from src.detection.mask_refine import RefineParams, SilhouetteBank, refine_mask, refine_masks  # noqa: E402
 
 
 # ----------------------------------------------------------------------------- 메쉬
@@ -271,6 +271,44 @@ def main() -> int:
     res = refine_mask(junk, pcd, valid, intr, bank, params)
     good = (not res.ok) and np.array_equal(res.mask, junk)
     print(f"[T5 쓰레기 마스크] {res.summary()}   {'OK' if good else 'FAIL'}")
+    ok_all &= good
+
+    # --- 이웃이 앞/겹친 장면 (아래 두 테스트 공용) ---
+    def two_bolts(pose_a, pose_b, seed=3):
+        r2 = np.random.default_rng(seed)
+        ms = []
+        for phi, th, t in (pose_a, pose_b):
+            ms.append((verts @ rot_x_to(axis_dir(phi, th)).T + t, faces))
+        ms.append((floor, np.array([[0, 1, 2], [0, 2, 3]])))
+        d2, id2 = render(ms, f, cx, cy, w, h)
+        p2, v2 = pcd_from_depth(d2, f, cx, cy, r2)
+        return id2, p2, v2
+
+    def dil(m, k=9):
+        return cv2.dilate(m.astype(np.uint8), np.ones((k, k), np.uint8)).astype(bool)
+
+    # T6. 이웃(B)이 A보다 20mm 앞에서 십자로 걸치고, A의 마스크에 B가 번진 경우: 물체 평면(A)을 골라야 한다
+    id6, p6, v6 = two_bolts((0.0, 30.0, np.array([0.0, 0.0, 525.0])), (0.0, 120.0, np.array([0.0, 0.0, 505.0])))
+    a6 = id6 == 0
+    det6 = a6 | (dil(a6) & (id6 == 1))
+    r6 = refine_mask(det6, p6, v6, intr, bank, params)
+    leak0, leak1 = int((det6 & (id6 == 1)).sum()), int((r6.mask & (id6 == 1)).sum())
+    good = r6.ok and iou(r6.mask, a6) > 0.95 and iou(r6.mask, a6) > iou(det6, a6) + 0.1
+    print(f"[T6 A: 앞의 이웃 번짐(20mm)] IoU {iou(det6, a6):.3f} -> {iou(r6.mask, a6):.3f} | 이웃 픽셀 {leak0} -> {leak1}   "
+          f"{'OK' if good else 'FAIL'}")
+    ok_all &= good
+
+    # T7. 같은 깊이로 나란히 맞닿은 두 볼트의 검출이 서로에게 번진 경우: refine_masks가 겹침을 정리해야 한다
+    id7, p7, v7 = two_bolts((0.0, 90.0, np.array([-9.0, 0.0, 520.0])), (0.0, 90.0, np.array([10.0, 0.0, 520.0])))
+    a7, b7 = id7 == 0, id7 == 1
+    da, db = a7 | (dil(a7, 11) & b7), b7 | (dil(b7, 11) & a7)
+    ov_before = int((da & db).sum())
+    rs = refine_masks([da, db], p7, v7, intr, bank, params)
+    ov_after = int((rs[0].mask & rs[1].mask).sum()) if rs[0].ok and rs[1].ok else -1
+    ia, ib = iou(rs[0].mask, a7), iou(rs[1].mask, b7)
+    good = rs[0].ok and rs[1].ok and ov_after <= 0.2 * ov_before and ia > 0.93 and ib > 0.93
+    print(f"[T7 두 검출 상호 번짐] 겹침 {ov_before}px -> {ov_after}px | IoU A {iou(da, a7):.3f}->{ia:.3f}, "
+          f"B {iou(db, b7):.3f}->{ib:.3f}   {'OK' if good else 'FAIL'}")
     ok_all &= good
 
     print("\n결과:", "ALL OK" if ok_all else "일부 FAIL")

@@ -27,6 +27,7 @@ pointcloud_organized(H,W,3 mm), valid_mask, 근사 intrinsic(fx, fy)뿐이다.
 from __future__ import annotations
 
 import math
+import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -76,6 +77,12 @@ class RefineParams:
     top_k: int = 3
     # 깊이 기울기로 phi(축이 카메라 쪽으로 기울어진 각)를 제한한다. 실루엣만으로는 phi와 -phi가
     # 구분되지 않아(정사영은 z 반전에 불변) 어느 끝이 카메라에 가까운지 알 수 없지만, 깊이 평면은 안다.
+    # 마스크 안에 평면 후보가 여러 개(물체/이웃/바닥)면, 각 후보로 템플릿을 맞춰 보고 점수가 가장 좋은 쪽을 물체로 쓴다.
+    # (끄면 '카메라에 가장 가까운 평면 = 물체'로 고정 -> 앞쪽 이웃이 번졌을 때 이웃을 물체로 오인)
+    plane_select_by_fit: bool = True
+    # 여러 검출을 한꺼번에 보정할 때(refine_masks), 두 마스크가 겹친 픽셀은 한쪽에만 남긴다.
+    resolve_overlap: bool = True
+    overlap_dup_iou: float = 0.8      # 두 보정 마스크의 IoU가 이 이상이면 같은 물체의 중복 검출로 보고 건드리지 않음
     depth_phi: bool = True
     phi_depth_tol_deg: float = 12.0   # 깊이로 구한 phi에서 이 범위 안의 phi 템플릿만 시도
     phi_depth_min_pts: int = 60       # 기울기를 구할 최소 inlier 점 수 (미만이면 제한 없이 전체 탐색)
@@ -92,6 +99,24 @@ class RefineParams:
         return self.depth_tol_mm * self.bad_ratio
 
 
+# 실패 사유 코드 -> 사용자에게 보여줄 설명 (무엇을 만져 보면 되는지 포함)
+REASON_HELP = {
+    "mask_too_small": "마스크가 너무 작음",
+    "shape_mismatch": "마스크와 점군의 크기가 다름 (이미지/점군 해상도 확인)",
+    "no_depth": "마스크 안에 유효한 깊이 점이 부족",
+    "plane_fit_failed": "물체 평면 적합 실패",
+    "bad_depth": "깊이 값 이상",
+    "bad_scale": "스케일 이상 (내부 파라미터/점군 단위 확인)",
+    "small_core": "깊이가 일치하는 영역이 너무 작음 -> '깊이 허용(mm)'을 올려 보세요",
+    "scale_inconsistent": "마스크 안 깊이가 크게 퍼짐 (여러 물체/배경 혼입)",
+    "no_candidate": "맞는 템플릿 후보가 없음",
+    "low_score": "CAD 실루엣이 잘 안 맞음 -> '최소 score'를 낮추거나 CAD/깊이 허용 확인",
+    "empty_result": "보정 결과가 비어 원본 유지",
+    "no_mask": "검출에 마스크가 없음",
+    "no_session_data": "세션 점군 파일 없음",
+}
+
+
 @dataclass
 class RefineResult:
     mask: np.ndarray          # 보정 결과. ok=False면 입력 원본 마스크 그대로.
@@ -104,13 +129,34 @@ class RefineResult:
     n_after: int = 0
     n_added: int = 0
     n_removed: int = 0
+    plane: tuple | None = None   # 물체 평면 (u0, v0, a, b, c): z = a*(u-u0) + b*(v-v0) + c  (겹침 정리에 사용)
+    n_overlap_removed: int = 0   # 이웃 마스크와 겹쳐서 이웃에게 넘긴 픽셀 수
+    # --- 품질 지표 (의심 마스크를 거르는 데 사용; ok=True일 때만 의미 있음) ---
+    det_in_tpl: float = 0.0      # 원본 검출 중 CAD 투영 템플릿 안에 있는 비율 (낮으면 원본이 엉뚱한 모양/번짐)
+    coverage: float = 0.0        # 템플릿 중 최종 마스크가 채운 비율 (낮으면 끊김/가림이 큼)
+    change_ratio: float = 0.0    # (추가+삭제 픽셀) / 원본 면적 (크면 보정이 많이 고쳤다 = 원본 신뢰도 낮음)
+
+    def is_suspect(self, min_score: float = 0.0, max_change: float = 9.9, min_det_in_tpl: float = 0.0,
+                   drop_failed: bool = True) -> str:
+        """의심 마스크면 사유 문자열, 아니면 ''. 보정 포기(ok=False)는 drop_failed일 때 의심으로 본다."""
+        if not self.ok:
+            return f"보정포기({self.reason})" if drop_failed else ""
+        if self.score < min_score:
+            return f"score {self.score:.2f}<{min_score:.2f}"
+        if self.change_ratio > max_change:
+            return f"변경률 {self.change_ratio:.2f}>{max_change:.2f}"
+        if self.det_in_tpl < min_det_in_tpl:
+            return f"원본∩템플릿 {self.det_in_tpl:.2f}<{min_det_in_tpl:.2f}"
+        return ""
 
     def summary(self) -> str:
         if not self.ok:
             tail = f" score={self.score:.2f}" if self.score else ""
-            return f"보정 안 함({self.reason}{tail})"
+            return f"보정 안 함({self.reason}{tail}): {REASON_HELP.get(self.reason, '')}"
         return (f"보정 score={self.score:.2f} phi={self.phi_deg:+.0f}° theta={self.theta_deg:.0f}° "
-                f"면적 {self.n_before}→{self.n_after} (+{self.n_added}/-{self.n_removed})")
+                f"면적 {self.n_before}→{self.n_after} (+{self.n_added}/-{self.n_removed}) "
+                f"[원본∩템플릿 {self.det_in_tpl:.2f}, 채움 {self.coverage:.2f}, 변경률 {self.change_ratio:.2f}]"
+                + (f" 겹침정리 -{self.n_overlap_removed}" if self.n_overlap_removed else ""))
 
 
 # =============================================================================
@@ -297,13 +343,12 @@ def _fit_plane_ransac(u: np.ndarray, v: np.ndarray, z: np.ndarray, thresh: float
     return coef, np.abs(a_mat @ coef - z) < thresh
 
 
-def _pick_object_plane(u, v, z, p: RefineParams, rng) -> np.ndarray | None:
-    """마스크 안 depth에서 평면 후보를 순차 RANSAC으로 여러 개 찾고, '물체' 평면을 고른다.
+def _find_planes(u, v, z, p: RefineParams, rng) -> list[np.ndarray]:
+    """마스크 안 depth에서 평면 후보를 순차 RANSAC으로 찾는다 (물체/이웃/바닥 등).
 
-    마스크가 바닥/이웃으로 번지면 번진 쪽이 점이 더 많아 최다 평면이 물체가 아닐 수 있다.
-    그래서 충분히 큰 후보(최다 대비 plane_min_frac 이상) 중 평균 깊이가 가장 작은 것(=카메라에
-    가장 가까운 것)을 물체로 본다. 바닥보다 부품이 가까운 빈피킹 구도에 맞춘 규칙이며,
-    이웃이 더 가까우면 틀릴 수 있다 (이 경우는 템플릿 점수가 낮아져 보정이 포기된다).
+    충분히 큰 후보(최다 대비 plane_min_frac 이상)만 남기고, 평균 깊이가 작은(=카메라에 가까운) 순으로
+    정렬해 돌려준다. 맨 앞(가장 가까운 것)이 기본 '물체' 후보다 (바닥 번짐 대응).
+    plane_select_by_fit이 켜져 있으면 refine_mask가 후보마다 템플릿을 맞춰 보고 최종 선택한다.
     """
     cands = []
     ru, rv, rz = u, v, z
@@ -320,10 +365,10 @@ def _pick_object_plane(u, v, z, p: RefineParams, rng) -> np.ndarray | None:
         cands.append((coef, cnt, float(rz[inl].mean())))
         ru, rv, rz = ru[~inl], rv[~inl], rz[~inl]
     if not cands:
-        return None
+        return []
     top_cnt = max(c[1] for c in cands)
-    ok = [c for c in cands if c[1] >= p.plane_min_frac * top_cnt]
-    return min(ok, key=lambda c: c[2])[0]
+    ok = sorted((c for c in cands if c[1] >= p.plane_min_frac * top_cnt), key=lambda c: c[2])
+    return [c[0] for c in ok]
 
 
 def _score_map(f_map, bad_map, det_map, exp_map, tpl, f_sum, p: RefineParams):
@@ -366,10 +411,12 @@ def _fail(det: np.ndarray, reason: str, n_before: int, score: float = 0.0,
 # =============================================================================
 # 메인
 # =============================================================================
-def refine_mask(det_mask: np.ndarray, pcd_mm: np.ndarray, valid_mask: np.ndarray,
-                intrinsics: Sequence[float], bank: SilhouetteBank,
-                params: RefineParams | None = None) -> RefineResult:
-    """검출 마스크 한 개를 보정한다.
+def _refine_impl(det_mask: np.ndarray, pcd_mm: np.ndarray, valid_mask: np.ndarray,
+                 intrinsics: Sequence[float], bank: SilhouetteBank,
+                 params: RefineParams | None = None, plane_rank: int = 0,
+                 info: dict | None = None) -> RefineResult:
+    """refine_mask의 본체. plane_rank번째(가까운 순) 평면 후보를 물체로 가정해 보정한다.
+    info가 주어지면 info["n_planes"]에 평면 후보 수를 채운다.
 
     Args:
         det_mask: (H,W) bool 검출 마스크.
@@ -406,10 +453,12 @@ def refine_mask(det_mask: np.ndarray, pcd_mm: np.ndarray, valid_mask: np.ndarray
         ys_s, xs_s = ys[sel], xs[sel]
     else:
         ys_s, xs_s = ys, xs
-    coef = _pick_object_plane(xs_s - u0, ys_s - v0, z_all[ys_s, xs_s].astype(np.float64), p, rng)
-    if coef is None:
+    planes = _find_planes(xs_s - u0, ys_s - v0, z_all[ys_s, xs_s].astype(np.float64), p, rng)
+    if info is not None:
+        info["n_planes"] = len(planes)
+    if plane_rank >= len(planes):
         return _fail(det, "plane_fit_failed", n_before)
-    pa, pb, pc = coef
+    pa, pb, pc = planes[plane_rank]
 
     # 물체 평면 inlier 점으로 카메라 좌표계의 기울기 dz/dX, dz/dY 를 구한다 (phi 부호/크기의 근거).
     # 픽셀 좌표가 아니라 (X, Y, Z) mm 로 적합해야 시야각에 따른 왜곡 없이 축 방향 기울기가 나온다.
@@ -606,8 +655,129 @@ def refine_mask(det_mask: np.ndarray, pcd_mm: np.ndarray, valid_mask: np.ndarray
     if n_after < p.min_core_px:
         return _fail(det, "empty_result", n_before, score, phi, th)
 
+    n_added, n_removed = int((out & ~det).sum()), int((det & ~out).sum())
+    t_area = max(int(t_r.sum()), 1)
     return RefineResult(
         mask=out, ok=True, score=score, phi_deg=phi, theta_deg=float(th),
-        n_before=n_before, n_after=n_after,
-        n_added=int((out & ~det).sum()), n_removed=int((det & ~out).sum()),
+        n_before=n_before, n_after=n_after, n_added=n_added, n_removed=n_removed,
+        det_in_tpl=float((det_r & t_r).sum()) / max(int(det_r.sum()), 1),
+        coverage=float((final_r & t_r).sum()) / t_area,
+        change_ratio=(n_added + n_removed) / max(n_before, 1),
+        plane=(float(u0), float(v0), float(pa), float(pb), float(pc)),
     )
+
+
+def refine_mask(det_mask: np.ndarray, pcd_mm: np.ndarray, valid_mask: np.ndarray,
+                intrinsics: Sequence[float], bank: SilhouetteBank,
+                params: RefineParams | None = None) -> RefineResult:
+    """검출 마스크 한 개를 보정한다.
+
+    Args:
+        det_mask: (H,W) bool 검출 마스크.
+        pcd_mm: (H,W,3) float, organized 점군(mm). 광축 방향 Z는 [..., 2].
+        valid_mask: (H,W) bool, pcd 유효 픽셀.
+        intrinsics: (fx, fy, cx, cy) 또는 (fx, fy). 약원근 스케일 계산에는 fx, fy만 쓴다.
+        bank: SilhouetteBank (get_bank로 CAD당 한 번 생성).
+        params: RefineParams.
+
+    Returns:
+        RefineResult. ok=False이면 .mask는 입력 det_mask 그대로다.
+
+    평면 후보가 여러 개면(물체+이웃/바닥) 후보마다 보정해 보고, '템플릿 점수 x 검출 마스크 설명 비율'이
+    가장 큰 것을 고른다. 앞쪽 이웃이 번진 경우에도 대상 볼트를 물체로 고를 수 있게 한다.
+    """
+    p = params or RefineParams()
+    info: dict = {}
+    best = _refine_impl(det_mask, pcd_mm, valid_mask, intrinsics, bank, p, 0, info)
+    n_planes = int(info.get("n_planes", 1))
+    if not p.plane_select_by_fit or n_planes <= 1:
+        return best
+    det = np.asarray(det_mask, dtype=bool)
+    det_n = max(int(det.sum()), 1)
+
+    def _eff(r: RefineResult) -> float:
+        return -1.0 if not r.ok else r.score * float((r.mask & det).sum()) / det_n
+
+    best_eff = _eff(best)
+    for k in range(1, n_planes):
+        r = _refine_impl(det_mask, pcd_mm, valid_mask, intrinsics, bank, p, k, None)
+        e = _eff(r)
+        if e > best_eff:
+            best, best_eff = r, e
+    return best
+
+
+def refine_masks(det_masks: Sequence[np.ndarray], pcd_mm: np.ndarray, valid_mask: np.ndarray,
+                 intrinsics: Sequence[float], bank: SilhouetteBank,
+                 params: RefineParams | None = None) -> list[RefineResult]:
+    """한 프레임의 검출 마스크 여러 개를 보정하고, 마스크끼리 겹친 픽셀을 정리한다.
+
+    각 마스크를 refine_mask로 보정한 뒤, 보정에 성공한 두 마스크가 겹친 픽셀은 한쪽에만 남긴다.
+      - 한쪽 평면에만 깊이가 맞으면(|dz| < depth_tol) 그쪽이 가져간다.
+      - 둘 다 맞거나 둘 다 안 맞으면 자기 마스크 안쪽 깊이(경계에서 먼 쪽)가 큰 쪽이 가져간다.
+      - 보정 후 두 마스크의 IoU가 overlap_dup_iou 이상이면(같은 물체 중복 검출) 건드리지 않는다.
+    보정을 포기한 마스크(ok=False)는 원본 그대로 두고, 이웃에게 픽셀을 빼앗지도 않는다.
+    """
+    p = params or RefineParams()
+    results = [refine_mask(m, pcd_mm, valid_mask, intrinsics, bank, p) for m in det_masks]
+    if not p.resolve_overlap or len(results) < 2:
+        return results
+
+    idx = [i for i, r in enumerate(results) if r.ok and r.plane is not None]
+    if len(idx) < 2:
+        return results
+    base = {i: results[i].mask for i in idx}
+    cur = {i: results[i].mask.copy() for i in idx}
+    dist = {}
+    z_all = pcd_mm[..., 2]
+    zvalid = np.asarray(valid_mask, dtype=bool) & np.isfinite(z_all) & (z_all > 0)
+    h, w = z_all.shape
+    gy, gx = np.mgrid[0:h, 0:w]
+
+    def _consistent(i: int) -> np.ndarray:
+        u0, v0, a, b, c = results[i].plane
+        dz = np.abs(z_all - (a * (gx - u0) + b * (gy - v0) + c))
+        return (~zvalid) | (dz < p.depth_tol_mm)   # 깊이가 없는 픽셀은 판단 보류(일치로 취급)
+
+    def _dist(i: int) -> np.ndarray:
+        if i not in dist:
+            dist[i] = cv2.distanceTransform(base[i].astype(np.uint8), cv2.DIST_L2, 3)
+        return dist[i]
+
+    changed: set[int] = set()
+    cons_cache: dict[int, np.ndarray] = {}
+    for ai in range(len(idx)):
+        for bi in range(ai + 1, len(idx)):
+            i, j = idx[ai], idx[bi]
+            ov = cur[i] & cur[j]
+            if not ov.any():
+                continue
+            union = int((base[i] | base[j]).sum())
+            if union and int((base[i] & base[j]).sum()) / union >= p.overlap_dup_iou:
+                continue  # 같은 물체의 중복 검출 (이 정리의 대상이 아님)
+            ci = cons_cache.setdefault(i, _consistent(i))
+            cj = cons_cache.setdefault(j, _consistent(j))
+            i_wins = (ci & ~cj) | ((ci == cj) & (_dist(i) >= _dist(j)))
+            cur[i][ov & ~i_wins] = False
+            cur[j][ov & i_wins] = False
+            changed.update((i, j))
+
+    for i in changed:
+        m = cur[i]
+        # 조각 정리: 겹침 정리로 생긴 작은 파편 제거 (큰 조각은 가림으로 갈라진 정상 조각일 수 있어 유지)
+        n_lab, lab, stats, _ = cv2.connectedComponentsWithStats(m.astype(np.uint8), connectivity=8)
+        if n_lab > 1:
+            min_keep = max(15, int(0.03 * int(m.sum())))
+            keep = np.zeros(n_lab, bool)
+            keep[1:] = stats[1:, cv2.CC_STAT_AREA] >= min_keep
+            m = keep[lab]
+        if int(m.sum()) < p.min_core_px:
+            continue  # 거의 다 빼앗겼으면 정리 취소 (원래 보정 결과 유지)
+        det_i = np.asarray(det_masks[i], dtype=bool)
+        r = results[i]
+        results[i] = dataclasses.replace(
+            r, mask=m, n_after=int(m.sum()),
+            n_added=int((m & ~det_i).sum()), n_removed=int((det_i & ~m).sum()),
+            n_overlap_removed=int((base[i] & ~m).sum()),
+        )
+    return results

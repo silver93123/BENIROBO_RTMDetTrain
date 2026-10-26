@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
-from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtCore import Qt, QRectF, pyqtSignal
 from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QFont, QImage
 from PyQt6.QtWidgets import QLabel, QSizePolicy
 
@@ -15,7 +15,13 @@ POSE_OVERLAY_LINE_WIDTH = 1.2  # px, 윤곽선 두께 (채워진 원이 아니�
 POSE_OVERLAY_COLOR = QColor(0, 220, 255, POSE_OVERLAY_ALPHA)  # 하늘색 - 노란 볼트 실물과 안 겹치게
 
 
+ROI_MIN_SIZE = 16  # px, 드래그로 이보다 작게 그리면 클릭으로 보고 무시
+
+
 class ImageViewer(QLabel):
+    #: 사용자가 마우스로 ROI를 그리면 (x1, y1, x2, y2) 이미지 좌표(x2/y2 미포함)로 알린다.
+    roi_changed = pyqtSignal(int, int, int, int)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -26,6 +32,10 @@ class ImageViewer(QLabel):
         self._detections: list[Detection] = []
         self._pose_overlays: dict[int, np.ndarray] = {}  # obj index -> (N,2) 투영된 2D 점
         self._box_opacity = 1.0  # 0~1, bbox 테두리/라벨 불투명도 (기본 1 = 기존 동작)
+        self._roi: tuple[int, int, int, int] | None = None  # 표시할 ROI (이미지 좌표)
+        self._roi_drawing = False        # True면 마우스 드래그로 ROI를 그릴 수 있다
+        self._roi_drag_start: tuple[float, float] | None = None
+        self._roi_before_drag: tuple[int, int, int, int] | None = None
         self.setText("이미지를 불러오세요")
 
     def load_image(self, path: str) -> None:
@@ -37,6 +47,73 @@ class ImageViewer(QLabel):
     def set_detections(self, detections: list[Detection]) -> None:
         self._detections = detections
         self._refresh()
+
+    def image_size(self) -> tuple[int, int] | None:
+        """(width, height). 이미지가 없으면 None."""
+        if self._base_pixmap is None or self._base_pixmap.isNull():
+            return None
+        return self._base_pixmap.width(), self._base_pixmap.height()
+
+    def set_roi(self, roi: tuple[int, int, int, int] | None) -> None:
+        """ROI 사각형을 표시한다 (밖은 어둡게). None이면 숨김."""
+        self._roi = None if roi is None else tuple(int(v) for v in roi)
+        self._refresh()
+
+    def set_roi_drawing(self, enabled: bool) -> None:
+        """True면 마우스 왼쪽 드래그로 ROI를 그린다 (roi_changed 시그널)."""
+        self._roi_drawing = bool(enabled)
+        self._roi_drag_start = None
+        self.setCursor(Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.ArrowCursor)
+
+    def _widget_to_image(self, pos) -> tuple[float, float] | None:
+        """위젯 좌표 -> 이미지 좌표. 표시된 이미지 밖이면 가장자리로 clamp."""
+        pm = self.pixmap()
+        size = self.image_size()
+        if pm is None or pm.isNull() or size is None:
+            return None
+        pw, ph = pm.width(), pm.height()
+        if pw <= 0 or ph <= 0:
+            return None
+        off_x = (self.width() - pw) / 2.0
+        off_y = (self.height() - ph) / 2.0
+        x = (pos.x() - off_x) * size[0] / pw
+        y = (pos.y() - off_y) * size[1] / ph
+        return min(max(x, 0.0), size[0]), min(max(y, 0.0), size[1])
+
+    def mousePressEvent(self, event) -> None:
+        if self._roi_drawing and event.button() == Qt.MouseButton.LeftButton:
+            p = self._widget_to_image(event.position())
+            if p is not None:
+                self._roi_drag_start = p
+                self._roi_before_drag = self._roi
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._roi_drag_start is not None:
+            p = self._widget_to_image(event.position())
+            if p is not None:
+                x1, y1 = self._roi_drag_start
+                self._roi = (int(min(x1, p[0])), int(min(y1, p[1])), int(max(x1, p[0])), int(max(y1, p[1])))
+                self._refresh()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if self._roi_drag_start is not None and event.button() == Qt.MouseButton.LeftButton:
+            p = self._widget_to_image(event.position())
+            x1, y1 = self._roi_drag_start
+            self._roi_drag_start = None
+            if p is not None:
+                rx1, ry1, rx2, ry2 = int(min(x1, p[0])), int(min(y1, p[1])), int(max(x1, p[0])), int(max(y1, p[1]))
+                if rx2 - rx1 >= ROI_MIN_SIZE and ry2 - ry1 >= ROI_MIN_SIZE:
+                    self._roi = (rx1, ry1, rx2, ry2)
+                    self.roi_changed.emit(rx1, ry1, rx2, ry2)
+                else:
+                    self._roi = self._roi_before_drag  # 너무 작은 드래그 = 클릭으로 보고 이전 ROI 유지
+                self._refresh()
+            return
+        super().mouseReleaseEvent(event)
 
     def set_box_opacity(self, opacity: float) -> None:
         """bbox 테두리와 라벨의 불투명도(0=완전 투명 ~ 1=불투명). 박스가 물체를 가릴 때 낮춘다."""
@@ -99,6 +176,20 @@ class ImageViewer(QLabel):
                 painter.drawText(int(x1) + 4, int(y1) - 5, label_text)
                 painter.setPen(pen)
         painter.setOpacity(1.0)  # 3단계(pose 오버레이)는 영향받지 않게 복원
+
+        # ROI: 밖을 어둡게 + 노란 점선 테두리
+        if self._roi is not None:
+            rx1, ry1, rx2, ry2 = self._roi
+            cw, ch = canvas.width(), canvas.height()
+            shade = QColor(0, 0, 0, 120)
+            painter.fillRect(QRectF(0, 0, cw, ry1), shade)
+            painter.fillRect(QRectF(0, ry2, cw, ch - ry2), shade)
+            painter.fillRect(QRectF(0, ry1, rx1, ry2 - ry1), shade)
+            painter.fillRect(QRectF(rx2, ry1, cw - rx2, ry2 - ry1), shade)
+            roi_pen = QPen(QColor(255, 210, 0), 3, Qt.PenStyle.DashLine)
+            painter.setPen(roi_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(QRectF(rx1, ry1, rx2 - rx1, ry2 - ry1))
 
         # 3단계: pose 미리보기 오버레이 (반투명 노란 "윤곽선" 원 - CAD를 현재
         # 입력 각도로 투영한 것. 속이 빈 원이라 실제 물체 사진이 안 가려지고,

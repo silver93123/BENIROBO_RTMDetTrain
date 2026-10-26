@@ -107,8 +107,13 @@ class Detector:
         conf_threshold: float | None = None,
         pcd_organized_mm: np.ndarray | None = None,
         valid_mask: np.ndarray | None = None,
+        roi: tuple[int, int, int, int] | None = None,
     ) -> list[Detection]:
         """이미지 한 장에 대해 검출을 수행한다.
+
+        roi=(x1, y1, x2, y2) (x2/y2는 미포함, 픽셀)를 주면 그 영역만 잘라서 추론하고,
+        결과(bbox/mask)는 원본 이미지 좌표로 되돌려 반환한다. 영역 밖 물체는 검출되지 않는다.
+        None이면 전체 이미지를 쓴다 (기존 동작).
 
         pcd_organized_mm/valid_mask는 backend가 _BACKENDS_REQUIRING_3D에
         속할 때만 의미가 있다 (initial_pose 계산에 필요, icp_test_tab.py가
@@ -123,6 +128,18 @@ class Detector:
         gray = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
         if gray is None:
             raise ValueError(f"이미지를 읽을 수 없습니다: {image_path}")
+        full_h, full_w = gray.shape
+        ox = oy = 0
+        if roi is not None:
+            x1, y1, x2, y2 = (int(v) for v in roi)
+            x1, y1 = max(0, min(x1, full_w - 1)), max(0, min(y1, full_h - 1))
+            x2, y2 = max(x1 + 1, min(x2, full_w)), max(y1 + 1, min(y2, full_h))
+            gray = gray[y1:y2, x1:x2]
+            if pcd_organized_mm is not None:
+                pcd_organized_mm = pcd_organized_mm[y1:y2, x1:x2]
+            if valid_mask is not None:
+                valid_mask = valid_mask[y1:y2, x1:x2]
+            ox, oy = x1, y1
         bgr = np.stack([gray, gray, gray], axis=-1)
 
         if self.backend in _BACKENDS_REQUIRING_3D:
@@ -138,12 +155,20 @@ class Detector:
             if score < threshold:
                 continue
             x1, y1, x2, y2 = [float(v) for v in r.bbox]
+            mask = getattr(r, "mask", None)
+            if roi is not None:
+                x1, x2, y1, y2 = x1 + ox, x2 + ox, y1 + oy, y2 + oy
+                if mask is not None:  # ROI 크기 마스크를 원본 크기로 되돌린다
+                    m = np.asarray(mask).astype(bool)
+                    full = np.zeros((full_h, full_w), dtype=bool)
+                    full[oy:oy + m.shape[0], ox:ox + m.shape[1]] = m
+                    mask = full
             detections.append(
                 Detection(
                     label=str(r.class_name),
                     confidence=score,
                     bbox=(x1, y1, x2, y2),
-                    mask=getattr(r, "mask", None),
+                    mask=mask,
                     initial_pose=getattr(r, "initial_pose", None),
                 )
             )
