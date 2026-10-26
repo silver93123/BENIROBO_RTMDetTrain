@@ -139,6 +139,11 @@ class FemtoBoltCamera(CameraBase):
             각 필터는 {enabled: bool, <파라미터>: 값}. 기본 동작은 "RGB 정렬에만 적용"이며
             포인트클라우드(organized PCD)는 원본 depth로 만든다 (홀필링은 값을 지어내므로).
             필터 설정이 실패해도 경고만 남기고 캡처는 계속된다.
+        intensity: IR(16bit) → intensity(8bit) 변환 설정 (config의 camera.intensity 섹션).
+            Orbbec Viewer의 IR "Visual Range (min/max)"와 같은 개념이다.
+            min과 max가 둘 다 숫자면 고정 범위 [min, max]를 0~255로 선형 매핑한다
+            (프레임마다 밝기 기준이 같아 일관적). 하나라도 null이면 기존처럼
+            프레임별 percentile stretch(percentile_low~percentile_high, 기본 1~99)를 쓴다.
     """
 
     def __init__(
@@ -153,6 +158,7 @@ class FemtoBoltCamera(CameraBase):
         capture_rgb: bool = False,
         color_settings: Optional[dict] = None,
         depth_filters: Optional[dict] = None,
+        intensity: Optional[dict] = None,
     ) -> None:
         if not _ORBBEC_AVAILABLE:
             raise ImportError(
@@ -174,6 +180,17 @@ class FemtoBoltCamera(CameraBase):
         self.capture_rgb = bool(capture_rgb)
         self.color_settings = dict(color_settings) if color_settings else {}
         self.depth_filter_cfg = dict(depth_filters) if depth_filters else {}
+        ic = dict(intensity) if intensity else {}
+        self._int_min = ic.get("min")
+        self._int_max = ic.get("max")
+        self._int_p_lo = float(ic.get("percentile_low", 1.0))
+        self._int_p_hi = float(ic.get("percentile_high", 99.0))
+        if (self._int_min is None) != (self._int_max is None):
+            logger.warning("intensity.min/max 는 둘 다 지정해야 고정 범위가 적용됩니다 - percentile 방식을 씁니다.")
+            self._int_min = self._int_max = None
+        if self._int_min is not None and float(self._int_max) <= float(self._int_min):
+            logger.warning("intensity.max(%s) <= min(%s) - percentile 방식을 씁니다.", self._int_max, self._int_min)
+            self._int_min = self._int_max = None
         self._depth_filters: list = []  # [(config_key, Filter)] 적용 순서대로
 
         self._pipeline: Optional["Pipeline"] = None
@@ -637,12 +654,14 @@ class FemtoBoltCamera(CameraBase):
             logger.warning("RGB 정렬/추출 실패 (IR/depth 결과에는 영향 없음): %s", e)
             return None
 
-    @staticmethod
-    def _normalize_intensity(intensity_u16: np.ndarray) -> np.ndarray:
+    def _normalize_intensity(self, intensity_u16: np.ndarray) -> np.ndarray:
         if intensity_u16.size == 0:
             return np.zeros_like(intensity_u16, dtype=np.uint8)
 
-        lo, hi = np.percentile(intensity_u16, [1.0, 99.0])
+        if self._int_min is not None:
+            lo, hi = float(self._int_min), float(self._int_max)
+        else:
+            lo, hi = np.percentile(intensity_u16, [self._int_p_lo, self._int_p_hi])
         if hi <= lo:
             return np.zeros_like(intensity_u16, dtype=np.uint8)
 

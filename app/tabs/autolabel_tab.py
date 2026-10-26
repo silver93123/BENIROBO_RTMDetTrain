@@ -30,7 +30,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from app.core.paths import DEFAULT_CONFIG_PATH, PROJECT_ROOT
+from app.core.paths import DEFAULT_CAD_DIR, DEFAULT_CONFIG_PATH, PROJECT_ROOT
 from src.autolabel.config import DEFAULT
 
 # labelme 는 PySide6 기반이라 이 앱(PyQt6)과 같은 env 에 두면 충돌할 수 있다.
@@ -85,6 +85,20 @@ class AutoLabelTab(QWidget):
         lay.addWidget(btn)
         return row
 
+    @staticmethod
+    def _default_cad() -> str:
+        """data/cad 안에 'bolt'가 들어간 CAD가 정확히 하나면 미리 채운다."""
+        try:
+            cands = [f for f in DEFAULT_CAD_DIR.iterdir()
+                     if f.suffix.lower() in {".stl", ".ply", ".obj"} and "bolt" in f.name.lower()]
+            return str(cands[0]) if len(cands) == 1 else ""
+        except OSError:
+            return ""
+
+    def _on_refine_toggled(self, on: bool) -> None:
+        for w in (self.row_cad, self.spn_depth_tol, self.spn_refine_score):
+            w.setEnabled(bool(on))
+
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
 
@@ -132,6 +146,34 @@ class AutoLabelTab(QWidget):
         self.chk_tta = QCheckBox("좌우반전 TTA 사용 (불확실도 정확, 추론 2배 느림)")
         self.chk_tta.setChecked(True)
         form.addRow("", self.chk_tta)
+
+        # --- 2D 형상 보정 (선택): 탭 3 과 같은 알고리즘을 초안 마스크에 적용 -----------
+        self.chk_refine = QCheckBox("2D 형상 보정 사용 (CAD 투영 실루엣 + 깊이)")
+        self.chk_refine.setToolTip(
+            "추론 결과 마스크를 볼트 투영 실루엣에 맞춰 다듬은 뒤 대기열을 만듭니다 (이웃 번짐/끊김 완화).\n"
+            "새 이미지 폴더가 <세션>/intensity 이고 같은 세션에 pointcloud_organized, valid_mask 가 있어야 합니다.\n"
+            "원본 추론 결과는 그대로 보존되며, 끄면 원본으로 대기열을 만듭니다."
+        )
+        self.chk_refine.toggled.connect(self._on_refine_toggled)
+        form.addRow("", self.chk_refine)
+        self.ed_cad = QLineEdit(self._default_cad())
+        self.ed_cad.setPlaceholderText("볼트 CAD (.stl/.ply/.obj)")
+        self.row_cad = self._path_row(self.ed_cad, "file", "CAD (*.stl *.ply *.obj)")
+        form.addRow("  CAD 파일", self.row_cad)
+        self.spn_depth_tol = QDoubleSpinBox()
+        self.spn_depth_tol.setRange(1.0, 50.0)
+        self.spn_depth_tol.setSingleStep(1.0)
+        self.spn_depth_tol.setValue(8.0)
+        self.spn_depth_tol.setToolTip("물체 평면에서 이 거리(mm) 이내의 점을 물체로 인정. 센서 노이즈가 크면 키웁니다.")
+        form.addRow("  깊이 허용 (mm)", self.spn_depth_tol)
+        self.spn_refine_score = QDoubleSpinBox()
+        self.spn_refine_score.setRange(0.0, 1.0)
+        self.spn_refine_score.setSingleStep(0.05)
+        self.spn_refine_score.setDecimals(2)
+        self.spn_refine_score.setValue(0.5)
+        self.spn_refine_score.setToolTip("템플릿 적합 점수가 이 값 미만이면 보정을 포기하고 원본 마스크를 유지합니다.")
+        form.addRow("  보정 최소 score", self.spn_refine_score)
+        self._on_refine_toggled(False)
         root.addWidget(box)
 
         box1 = QGroupBox("1. 추론 + 대기열 생성")
@@ -229,6 +271,7 @@ class AutoLabelTab(QWidget):
             "cache": AUTOLABEL_ROOT / "cache" / name,
             "round": AUTOLABEL_ROOT / "rounds" / name,
             "dataset": AUTOLABEL_ROOT / "dataset" / name,
+            "refined": AUTOLABEL_ROOT / "cache_refined" / name,  # 형상 보정 캐시 (원본 cache 는 보존)
         }
 
     def _log(self, msg: str) -> None:
@@ -311,12 +354,12 @@ class AutoLabelTab(QWidget):
             line = line.rstrip()
             if not line:
                 continue
-            if line.startswith("[predict]"):
+            if line.startswith(("[predict]", "[refine]")):
                 self._parse_progress(line)
             self.log_message.emit(line)
 
     def _parse_progress(self, line: str) -> None:
-        # "[predict] 30/120  (12.3s)"
+        # "[predict] 30/120  (12.3s)" / "[refine] 30/120  (...)"
         try:
             frac = line.split()[1]
             n, total = frac.split("/")
@@ -418,6 +461,22 @@ class AutoLabelTab(QWidget):
                 return
         re_queue = has_queue
 
+        use_refine = self.chk_refine.isChecked()
+        if use_refine:
+            cad = self.ed_cad.text().strip()
+            if not cad or not Path(cad).is_file():
+                QMessageBox.warning(self, "오토라벨링", f"형상 보정용 CAD 파일을 확인하세요:\n{cad}")
+                return
+            if Path(images).name != "intensity":
+                QMessageBox.warning(
+                    self, "오토라벨링",
+                    "형상 보정은 새 이미지 폴더가 <세션>/intensity 여야 합니다\n"
+                    "(같은 세션의 pointcloud_organized, valid_mask 를 읽습니다).\n\n"
+                    f"현재: {images}\n보정을 끄거나 폴더를 바꾸세요.",
+                )
+                return
+        queue_cache = paths["refined"] if use_refine else paths["cache"]  # 보정 켜면 보정 캐시로 대기열 생성
+
         predict_args = [
             "--images", images,
             "--cache", str(paths["cache"]),
@@ -432,18 +491,25 @@ class AutoLabelTab(QWidget):
 
         queue_args = [
             "--images", images,
-            "--cache", str(paths["cache"]),
+            "--cache", str(queue_cache),
             "--round", str(paths["round"]),
             "--max-vertices", str(int(self.spn_maxv.value())),
             "--eps-ratio", f"{float(self.spn_eps.value()):.4f}",
             *(["--overwrite"] if re_queue else []),
         ]
-        self._run_steps(
-            [
-                ("추론", self._module_args("predict", *predict_args)),
-                ("대기열 생성", self._module_args("queue", *queue_args)),
+        steps = [("추론", self._module_args("predict", *predict_args))]
+        if use_refine:
+            refine_args = [
+                "--images", images,
+                "--cache", str(paths["cache"]),
+                "--out", str(paths["refined"]),
+                "--cad", self.ed_cad.text().strip(),
+                "--depth-tol", f"{float(self.spn_depth_tol.value()):.2f}",
+                "--min-score", f"{float(self.spn_refine_score.value()):.2f}",
             ]
-        )
+            steps.append(("형상 보정", self._module_args("refine", *refine_args)))
+        steps.append(("대기열 생성", self._module_args("queue", *queue_args)))
+        self._run_steps(steps)
 
     def _on_edit(self) -> None:
         paths = self._paths()

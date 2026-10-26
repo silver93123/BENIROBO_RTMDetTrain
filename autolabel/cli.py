@@ -4,6 +4,8 @@
 
   python -m src.autolabel predict --images data/new_images --cache data/autolabel/cache/round03 \\
                                   --config work_dirs/xxx/cfg.py --checkpoint work_dirs/xxx/best.pth
+  python -m src.autolabel refine  --images data/new_images --cache data/autolabel/cache/round03 \\
+                                  --out data/autolabel/cache_refined/round03 --cad data/cad/bolt.stl   # 선택
   python -m src.autolabel queue   --images data/new_images --cache data/autolabel/cache/round03 \\
                                   --round data/autolabel/rounds/round03
   python -m src.autolabel edit    --round data/autolabel/rounds/round03 --bucket urgent
@@ -61,6 +63,23 @@ def cmd_predict(args) -> int:
         overwrite=args.overwrite,
         progress=lambda msg: print(msg, flush=True),
     )
+    return 0
+
+
+def cmd_refine(args) -> int:
+    from src.detection.mask_refine import RefineParams
+
+    from .refine_cache import refine_cache_folder
+
+    params = replace(RefineParams(), depth_tol_mm=args.depth_tol, min_score=args.min_score)
+    try:
+        refine_cache_folder(
+            Path(args.images), Path(args.cache), Path(args.out), Path(args.cad), params,
+            progress=lambda msg: print(msg, flush=True),
+        )
+    except (FileNotFoundError, RuntimeError) as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return 2
     return 0
 
 
@@ -144,6 +163,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-tta", action="store_true", help="좌우반전 TTA 생략 (추론 2배 빠름)")
     p.add_argument("--overwrite", action="store_true")
     p.set_defaults(func=cmd_predict)
+
+    p = sub.add_parser("refine", help="예측 캐시 마스크를 CAD 투영 실루엣+깊이로 보정 -> 보정 캐시 (선택 단계)")
+    p.add_argument("--images", required=True, help="<세션>/intensity 폴더 (같은 세션의 점군이 필요)")
+    p.add_argument("--cache", required=True, help="원본 예측 캐시 (수정하지 않음)")
+    p.add_argument("--out", required=True, help="보정 캐시 출력 폴더 -> queue 의 --cache 로 사용")
+    p.add_argument("--cad", required=True, help="볼트 CAD (.stl/.ply/.obj)")
+    p.add_argument("--depth-tol", type=float, default=8.0, help="물체 평면 허용 깊이(mm)")
+    p.add_argument("--min-score", type=float, default=0.5, help="템플릿 적합 최소 점수 (미만이면 원본 유지)")
+    p.set_defaults(func=cmd_refine)
 
     p = sub.add_parser("queue", help="우선순위 검수 대기열 생성")
     p.add_argument("--images", required=True)

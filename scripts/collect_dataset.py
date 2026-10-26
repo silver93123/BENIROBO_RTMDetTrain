@@ -68,6 +68,13 @@ def parse_args() -> argparse.Namespace:
             "선택지: intensity,pointcloud,organized,mask,metadata"
         ),
     )
+    p.add_argument(
+        "--intensity-range", type=str, default=None, metavar="MIN,MAX",
+        help=(
+            "Femto Bolt IR 16bit 값을 8bit로 펼 때의 고정 범위 (Orbbec Viewer의 Visual Range). "
+            "예: 0,1185. 지정하면 config의 camera.intensity.min/max 를 덮어쓴다."
+        ),
+    )
     return p.parse_args()
 
 
@@ -253,8 +260,26 @@ def main() -> int:
     with args.config.open("r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
+    if args.intensity_range:
+        try:
+            lo_s, hi_s = args.intensity_range.split(",")
+            lo, hi = float(lo_s), float(hi_s)
+            if not hi > lo:
+                raise ValueError("MAX는 MIN보다 커야 합니다")
+        except ValueError as e:
+            print(f"[ERROR] --intensity-range 형식 오류 (예: 0,1185): {e}", flush=True)
+            return 1
+        ic = dict(cfg["camera"].get("intensity") or {})
+        ic.update({"min": lo, "max": hi})
+        cfg["camera"]["intensity"] = ic
+
     dirs = setup_output_dirs(args.out, formats)
-    shutil.copy2(args.config, args.out / "config_snapshot.yaml")
+    if args.intensity_range:
+        # 실제로 쓴 설정이 남도록 덮어쓴 값이 반영된 config 를 저장 (주석은 사라짐)
+        with open(args.out / "config_snapshot.yaml", "w", encoding="utf-8") as f:
+            yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    else:
+        shutil.copy2(args.config, args.out / "config_snapshot.yaml")
 
     print("=" * 70, flush=True)
     print("  데이터셋 수집 (v2: organized PCD 포함)", flush=True)

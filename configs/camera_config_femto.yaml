@@ -18,7 +18,7 @@ camera:
   #   512x512 (WFOV Binned   — 약 0.25~2.5 m, 근거리 유리)
   depth_width: 640
   depth_height: 576
-  fps: 30
+  fps: 15
 
   # 카메라 캡처 타임아웃 (ms), 워밍업 프레임 수 (초기 프레임 불안정 대비)
   capture_timeout_ms: 2000
@@ -62,10 +62,10 @@ camera:
   #   - 적용 순서는 고정: decimation → threshold → noise_removal → spatial → temporal → hole_filling
   #   - decimation 은 해상도를 바꿔 IR/PCD 와 어긋나므로 권장하지 않는다 (켜지 마세요).
   depth_filters:
-    enabled: true
+    enabled: false
     apply_to_pointcloud: false
     threshold:
-      enabled: true
+      enabled: false
       min: 0              # mm
       max: 16000          # mm
     hole_filling:
@@ -79,5 +79,18 @@ camera:
       enabled: false
     decimation:
       enabled: false
+
+  # ---- intensity(IR) 밝기 매핑 (Orbbec Viewer IR 패널의 Visual Range min/max 와 같은 개념) ----
+  # IR 원본은 16bit 이고 8bit 이미지로 줄일 때 [min, max] 구간을 0~255 로 펴 준다.
+  #   - min/max 를 둘 다 숫자로 주면 고정 범위: 프레임마다 밝기 기준이 같다 (권장).
+  #     Viewer에서 화면을 보며 맞춘 값을 그대로 옮기면 된다 (예: min 0, max 1185).
+  #   - 하나라도 null 이면 프레임별 percentile stretch (아래 low~high 백분위)를 쓴다.
+  #   - 주의: 이 값을 바꾸면 intensity 이미지의 밝기 분포가 달라진다. 학습 데이터와
+  #     추론 때 쓰는 값이 같아야 하므로, 바꾼 뒤 수집한 데이터로 학습한 모델은 같은 값으로 추론하세요.
+  intensity:
+    min: null
+    max: null
+    percentile_low: 1
+    percentile_high: 99
 
   valid_z_range_mm: [100.0, 1500.0]

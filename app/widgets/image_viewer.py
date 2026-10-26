@@ -25,6 +25,7 @@ class ImageViewer(QLabel):
         self._base_pixmap: QPixmap | None = None
         self._detections: list[Detection] = []
         self._pose_overlays: dict[int, np.ndarray] = {}  # obj index -> (N,2) 투영된 2D 점
+        self._box_opacity = 1.0  # 0~1, bbox 테두리/라벨 불투명도 (기본 1 = 기존 동작)
         self.setText("이미지를 불러오세요")
 
     def load_image(self, path: str) -> None:
@@ -35,6 +36,11 @@ class ImageViewer(QLabel):
 
     def set_detections(self, detections: list[Detection]) -> None:
         self._detections = detections
+        self._refresh()
+
+    def set_box_opacity(self, opacity: float) -> None:
+        """bbox 테두리와 라벨의 불투명도(0=완전 투명 ~ 1=불투명). 박스가 물체를 가릴 때 낮춘다."""
+        self._box_opacity = min(1.0, max(0.0, float(opacity)))
         self._refresh()
 
     def set_pose_overlay(self, obj_index: int, points_2d: np.ndarray | None) -> None:
@@ -78,18 +84,21 @@ class ImageViewer(QLabel):
                 painter.drawImage(0, 0, mask_image)
 
         # 2단계: bbox + 라벨
-        for i, det in enumerate(self._detections):
-            color = colors[i % len(colors)]
-            pen = QPen(color, 3)
-            painter.setPen(pen)
-            x1, y1, x2, y2 = det.bbox
-            painter.drawRect(QRectF(x1, y1, x2 - x1, y2 - y1))
+        painter.setOpacity(self._box_opacity)
+        if self._box_opacity > 0.0:
+            for i, det in enumerate(self._detections):
+                color = colors[i % len(colors)]
+                pen = QPen(color, 3)
+                painter.setPen(pen)
+                x1, y1, x2, y2 = det.bbox
+                painter.drawRect(QRectF(x1, y1, x2 - x1, y2 - y1))
 
-            label_text = f"obj{i}: {det.label} {det.confidence:.2f}"
-            painter.fillRect(QRectF(x1, y1 - 20, 8 * len(label_text), 20), color)
-            painter.setPen(QPen(QColor("white")))
-            painter.drawText(int(x1) + 4, int(y1) - 5, label_text)
-            painter.setPen(pen)
+                label_text = f"obj{i}: {det.label} {det.confidence:.2f}"
+                painter.fillRect(QRectF(x1, y1 - 20, 8 * len(label_text), 20), color)
+                painter.setPen(QPen(QColor("white")))
+                painter.drawText(int(x1) + 4, int(y1) - 5, label_text)
+                painter.setPen(pen)
+        painter.setOpacity(1.0)  # 3단계(pose 오버레이)는 영향받지 않게 복원
 
         # 3단계: pose 미리보기 오버레이 (반투명 노란 "윤곽선" 원 - CAD를 현재
         # 입력 각도로 투영한 것. 속이 빈 원이라 실제 물체 사진이 안 가려지고,

@@ -156,6 +156,19 @@ camera:
     decimation:
       enabled: false
 
+  # ---- intensity(IR) 밝기 매핑 (Orbbec Viewer IR 패널의 Visual Range min/max 와 같은 개념) ----
+  # IR 원본은 16bit 이고 8bit 이미지로 줄일 때 [min, max] 구간을 0~255 로 펴 준다.
+  #   - min/max 를 둘 다 숫자로 주면 고정 범위: 프레임마다 밝기 기준이 같다 (권장).
+  #     Viewer에서 화면을 보며 맞춘 값을 그대로 옮기면 된다 (예: min 0, max 1185).
+  #   - 하나라도 null 이면 프레임별 percentile stretch (아래 low~high 백분위)를 쓴다.
+  #   - 주의: 이 값을 바꾸면 intensity 이미지의 밝기 분포가 달라진다. 학습 데이터와
+  #     추론 때 쓰는 값이 같아야 하므로, 바꾼 뒤 수집한 데이터로 학습한 모델은 같은 값으로 추론하세요.
+  intensity:
+    min: null
+    max: null
+    percentile_low: 1
+    percentile_high: 99
+
   valid_z_range_mm: [100.0, 1500.0]
 """
 
@@ -259,6 +272,32 @@ class DataCollectionTab(QWidget):
         num_row.addWidget(self.start_index_spin)
         num_row.addStretch(1)
         layout.addLayout(num_row)
+
+        int_row = QHBoxLayout()
+        self.chk_int_range = QCheckBox("Intensity 고정 밝기 범위 사용")
+        self.chk_int_range.setToolTip(
+            "Orbbec Viewer IR 패널의 Visual Range (min/max)와 같은 개념입니다.\n"
+            "체크하면 IR 16bit 값의 [최소, 최대] 구간을 0~255로 펴서 저장합니다 (프레임마다 기준이 같음).\n"
+            "체크 해제하면 config의 camera.intensity 설정(기본: 프레임별 자동)을 그대로 씁니다.\n"
+            "Femto Bolt 전용이며, 학습/추론 때도 같은 값을 써야 일관됩니다."
+        )
+        int_row.addWidget(self.chk_int_range)
+        int_row.addWidget(QLabel("최소"))
+        self.int_min_spin = QSpinBox()
+        self.int_min_spin.setRange(0, 65534)
+        self.int_min_spin.setValue(0)
+        self.int_min_spin.setEnabled(False)
+        int_row.addWidget(self.int_min_spin)
+        int_row.addWidget(QLabel("최대"))
+        self.int_max_spin = QSpinBox()
+        self.int_max_spin.setRange(1, 65535)
+        self.int_max_spin.setValue(1185)
+        self.int_max_spin.setEnabled(False)
+        int_row.addWidget(self.int_max_spin)
+        self.chk_int_range.toggled.connect(self.int_min_spin.setEnabled)
+        self.chk_int_range.toggled.connect(self.int_max_spin.setEnabled)
+        int_row.addStretch(1)
+        layout.addLayout(int_row)
 
         formats_row = QHBoxLayout()
         formats_row.addWidget(QLabel("저장할 파일 종류:"))
@@ -458,6 +497,10 @@ class DataCollectionTab(QWidget):
         self._last_idx = None
         self._preview_shown = False
 
+        if self.chk_int_range.isChecked() and self.int_min_spin.value() >= self.int_max_spin.value():
+            QMessageBox.warning(self, "설정 확인 필요", "Intensity 최소값은 최대값보다 작아야 합니다.")
+            return
+
         command = (
             f'python "{DEFAULT_COLLECT_SCRIPT}" '
             f'--config "{config_path}" --out "{out_dir}" '
@@ -466,6 +509,8 @@ class DataCollectionTab(QWidget):
             f"--start-index {self.start_index_spin.value()} "
             f'--formats "{",".join(selected_formats)}"'
         )
+        if self.chk_int_range.isChecked():
+            command += f" --intensity-range {self.int_min_spin.value()},{self.int_max_spin.value()}"
 
         self._current_out_dir = out_dir
         self.preview_label.clear()
