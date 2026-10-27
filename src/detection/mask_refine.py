@@ -135,6 +135,7 @@ class RefineResult:
     det_in_tpl: float = 0.0      # 원본 검출 중 CAD 투영 템플릿 안에 있는 비율 (낮으면 원본이 엉뚱한 모양/번짐)
     coverage: float = 0.0        # 템플릿 중 최종 마스크가 채운 비율 (낮으면 끊김/가림이 큼)
     change_ratio: float = 0.0    # (추가+삭제 픽셀) / 원본 면적 (크면 보정이 많이 고쳤다 = 원본 신뢰도 낮음)
+    center_uv: tuple | None = None  # 최종 템플릿의 모델 중심 픽셀 (u, v), 이미지 좌표. 2D 기반 픽 포인트 계산용
 
     def is_suspect(self, min_score: float = 0.0, max_change: float = 9.9, min_det_in_tpl: float = 0.0,
                    drop_failed: bool = True) -> str:
@@ -240,6 +241,11 @@ class SilhouetteBank:
         e3 = np.cross(e1, e2)
         vm = (verts - center) @ np.stack([e1, e2, e3], axis=1)
         lo, hi = vm.min(axis=0), vm.max(axis=0)
+        # 모델 좌표 -> CAD 파일 좌표: v_cad = model_to_cad_R @ x_model + model_origin_cad_mm
+        # (2D 템플릿 매칭 결과를 CAD 기준 자세로 되돌릴 때 사용)
+        self.model_to_cad_R = np.stack([e1, e2, e3], axis=1)
+        self.model_origin_cad_mm = center + self.model_to_cad_R @ ((lo + hi) / 2.0)
+        self.cad_center_mm = center  # 정점 평균
         vm = vm - (lo + hi) / 2.0
         ext = hi - lo
 
@@ -664,6 +670,7 @@ def _refine_impl(det_mask: np.ndarray, pcd_mm: np.ndarray, valid_mask: np.ndarra
         coverage=float((final_r & t_r).sum()) / t_area,
         change_ratio=(n_added + n_removed) / max(n_before, 1),
         plane=(float(u0), float(v0), float(pa), float(pb), float(pc)),
+        center_uv=(float(cx0 + bx + patch / 2.0), float(cy0 + by + patch / 2.0)),
     )
 
 

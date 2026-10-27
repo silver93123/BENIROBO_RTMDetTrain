@@ -44,14 +44,14 @@ from PyQt6.QtWidgets import (
 
 from app.core import icp_runner
 from app.core.app_settings import get_settings
-from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd
+from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd, project_points
 from app.core.config_patcher import find_latest_best_checkpoint
 from app.core.detector import Detection, Detector
 from app.core.icp_param_specs import B_SECTIONS, FGR_SPECS
 from app.core.icp_runner import ICPParams, ICPResult
 from app.core.paths import DEFAULT_CAD_DIR, DEFAULT_CONFIG_PATH, DEFAULT_DATASET_ROOT
 from app.core.registration import AVAILABLE_REGISTRATION_TYPES
-from app.widgets.image_viewer import ImageViewer
+from app.widgets.image_viewer import ImageViewer, make_label_opacity_bar
 from src.detection.mask_refine import RefineParams, RefineResult, get_bank, refine_masks
 
 DEFAULT_SCORE_THRESHOLD = 0.3
@@ -135,6 +135,7 @@ class ICPDetectionTestTab(QWidget):
         self.btn_run_all.clicked.connect(lambda _=False: self._on_run_all())
         top_row.addWidget(self.btn_run_all)
         top_row.addStretch(1)
+        self._top_row = top_row  # 하위 탭(4-1)이 버튼을 더 넣을 수 있게
         center.addLayout(top_row)
 
         controls = QWidget()
@@ -153,6 +154,8 @@ class ICPDetectionTestTab(QWidget):
 
         self.image_viewer = ImageViewer()
         self.image_viewer.roi_changed.connect(self._on_roi_drawn)
+        self.opacity_bar = make_label_opacity_bar(self.image_viewer)   # 라벨이 물체를 가릴 때 투명도 조절
+        self._top_row.addWidget(self.opacity_bar)
         center.addWidget(self.image_viewer, stretch=1)
         root.addLayout(center, stretch=2)
 
@@ -851,6 +854,7 @@ class ICPDetectionTestTab(QWidget):
 
         self._icp_results = results
         self._render_result_panel(results)
+        self._show_pick_overlays(results)
         self.btn_open_viewer.setEnabled(len(results) > 0)
         n_ok = sum(r.ok for r in results)
         self._log(f"3D 정합 완료: 성공 {n_ok}/{len(results)}")
@@ -910,7 +914,46 @@ class ICPDetectionTestTab(QWidget):
     # =================================================================
     # 결과 패널
     # =================================================================
+    def _show_pick_overlays(self, results: list[ICPResult]) -> None:
+        """성공한 인스턴스의 픽 포인트와 회전 좌표축(CAD 축보정 적용 후 축)을 이미지에 그린다.
+
+        좌표/각도 값은 오른쪽 결과 카드와 동일(카메라 좌표계 mm/deg). 2D 투영은 점군에서 역산한
+        핀홀 근사 intrinsic을 쓰므로 화면 위치는 근사이고, 값 자체는 3D 결과 그대로다.
+        """
+        overlays: list[dict] = []
+        try:
+            if self._pcd is None or self._valid is None:
+                raise ValueError("점군 없음")
+            intr = estimate_intrinsics_from_organized_pcd(self._pcd, self._valid)
+            extent_mm = 60.0
+            if self._cad_pcd is not None:
+                extent_mm = float(self._cad_pcd.get_axis_aligned_bounding_box().get_max_extent()) * 1000.0
+            length = float(np.clip(extent_mm * 0.6, 15.0, 120.0))
+            for r in results:
+                if not r.ok or r.T is None or r.pick_point_mm is None:
+                    continue
+                origin = np.asarray(r.pick_point_mm, dtype=np.float64)
+                rot = np.asarray(r.T, dtype=np.float64)[:3, :3]
+                pts = np.vstack([origin] + [origin + rot[:, k] * length for k in range(3)])
+                if np.any(pts[:, 2] <= 1.0):
+                    continue
+                uv = project_points(pts, intr)
+                e = r.pose["euler_deg"]
+                label = (f"obj{r.instance_id}\n"
+                         f"X{origin[0]:+.1f} Y{origin[1]:+.1f} Z{origin[2]:+.1f} mm\n"
+                         f"R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} Y{e['yaw_deg']:+.1f} deg")
+                overlays.append({"origin": tuple(uv[0]), "axes": [tuple(q) for q in uv[1:]], "label": label})
+        except Exception as exc:  # noqa: BLE001
+            self._log(f"픽 포인트 화면 표시 실패: {exc}")
+        overlays += self._extra_pick_overlays()
+        self.image_viewer.set_pick_overlays(overlays)
+
+    def _extra_pick_overlays(self) -> list[dict]:
+        """하위 탭(4-1)이 ICP 표시에 더 얹을 오버레이를 돌려준다."""
+        return []
+
     def _clear_result_panel(self) -> None:
+        self.image_viewer.set_pick_overlays(None)
         while self.result_layout.count() > 1:
             item = self.result_layout.takeAt(0)
             widget = item.widget()

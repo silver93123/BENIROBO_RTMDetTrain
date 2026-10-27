@@ -83,6 +83,8 @@ class RefineSettings:
     suspect_min_score: float = 0.80       # 템플릿 적합 점수가 이 값 미만이면 의심
     suspect_max_change: float = 0.50      # 변경률((추가+삭제)/원본 면적)이 이 값 초과면 의심
     suspect_min_det_in_tpl: float = 0.60  # 원본 검출 중 CAD 투영 안에 있는 비율이 이 값 미만이면 의심
+    # 2D 기반 픽 포인트(4-1 탭 / 5-2 서버): 보이는 표면 depth -> CAD 중심 depth 보정 (app/core/pose_from_template.py)
+    depth_correct: bool = True
 
 
 @dataclass
@@ -101,7 +103,8 @@ class CameraSettings:
 class TcpSettings:
     """5번 탭 TCP 서버: 통신 설정과 응답 형식."""
     host: str = "0.0.0.0"
-    port: int = 5000
+    port: int = 5000                # 5번 탭 (ICP 기반) 서버 포트
+    port_2d: int = 5001             # 5-2 탭 (2D 기반) 서버 포트 - 5번과 동시에 켤 수 있게 다르게 둔다
     # 요청 명령 (대소문자 무시)
     trigger_cmd: str = "PICK"
     ping_cmd: str = "PING"

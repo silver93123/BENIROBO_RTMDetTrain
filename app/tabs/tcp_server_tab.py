@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
 from app.core.app_settings import SettingsStore, get_settings
 from app.core.pick_pipeline import PickRunResult
 from app.core.pick_server import PickServer, PickWorker
-from app.widgets.image_viewer import ImageViewer
+from app.widgets.image_viewer import ImageViewer, make_label_opacity_bar
 
 
 def _guarded(func):
@@ -48,12 +48,16 @@ class TcpServerTab(QWidget):
     _manual_finished = pyqtSignal(object)    # 워커 스레드 -> GUI 스레드 (수동 실행 결과)
 
     LOG_PREFIX = "TCP 서버 탭"
+    MODE = "icp"             # PickPipeline 모드 ("2d"는 5-2 탭: ICP 없이 형상 보정 템플릿으로 계산)
+    USE_PORT_2D = False      # True면 설정의 port_2d를 쓴다
+    RUN_DESC = "촬영 -> 검출 -> 정합"
 
     def __init__(self, store: SettingsStore | None = None, parent=None):
         super().__init__(parent)
         self._store = store or get_settings()
-        self._worker = PickWorker(self._store, log=lambda m: self.log_message.emit(f"[{self.LOG_PREFIX}] {m}"))
-        self._server = PickServer(self._store, self._worker, parent=self)
+        self._worker = PickWorker(self._store, log=lambda m: self.log_message.emit(f"[{self.LOG_PREFIX}] {m}"),
+                                  mode=self.MODE)
+        self._server = PickServer(self._store, self._worker, parent=self, use_port_2d=self.USE_PORT_2D)
         self._manual_running = False
         self._build_ui()
 
@@ -84,7 +88,7 @@ class TcpServerTab(QWidget):
         self.btn_stop = QPushButton("서버 정지")
         self.btn_stop.clicked.connect(lambda _=False: self._on_stop())
         self.btn_manual = QPushButton("수동 1회 실행")
-        self.btn_manual.setToolTip("로봇 없이 촬영 -> 검출 -> 정합을 한 번 돌려 결과를 화면에 표시합니다 (응답은 전송되지 않음)")
+        self.btn_manual.setToolTip("로봇 없이 같은 처리를 한 번 돌려 결과를 화면에 표시합니다 (응답은 전송되지 않음)")
         self.btn_manual.clicked.connect(lambda _=False: self._on_manual())
         top.addWidget(self.btn_start)
         top.addWidget(self.btn_stop)
@@ -93,6 +97,7 @@ class TcpServerTab(QWidget):
         self.status_label = QLabel("● 정지")
         top.addWidget(self.status_label)
         top.addStretch(1)
+        self._top_layout = top
         root.addLayout(top)
 
         self.config_label = QLabel("")
@@ -109,6 +114,8 @@ class TcpServerTab(QWidget):
         self.image_viewer = ImageViewer()
         self.image_viewer.setMinimumSize(480, 360)
         left.addWidget(self.image_viewer, stretch=1)
+        self.opacity_bar = make_label_opacity_bar(self.image_viewer)   # 라벨이 마스크를 가릴 때 투명도 조절
+        top.addWidget(self.opacity_bar)
         self.run_label = QLabel("아직 요청이 없습니다.")
         self.run_label.setWordWrap(True)
         left.addWidget(self.run_label)
@@ -145,7 +152,7 @@ class TcpServerTab(QWidget):
             tcp = self._store.snapshot().tcp
             QMessageBox.critical(
                 self, "서버 시작 실패",
-                f"{tcp.host}:{tcp.port} 에서 대기할 수 없습니다.\n\n{exc}\n\n"
+                f"{tcp.host}:{self._server.port()} 에서 대기할 수 없습니다.\n\n{exc}\n\n"
                 "포트가 이미 사용 중이거나 호스트 주소가 이 PC의 것이 아닐 수 있습니다 ('12. 설정' > TCP 통신).")
             self._log(f"서버 시작 실패: {exc}")
         self._update_buttons()
@@ -207,7 +214,7 @@ class TcpServerTab(QWidget):
             return
         self._manual_running = True
         self._update_buttons()
-        self.run_label.setText("수동 실행 중... (촬영 -> 검출 -> 정합)")
+        self.run_label.setText(f"수동 실행 중... ({self.RUN_DESC})")
         # 서버가 꺼져 있으면 1회용이니 끝나고 카메라를 닫는다. 켜져 있으면 설정을 따른다.
         keep = None if self._server.is_running else False
         fut = self._worker.submit("pick", keep_camera_open=keep)

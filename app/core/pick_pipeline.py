@@ -5,6 +5,9 @@
 계산 함수는 전부 기존 코드(icp_runner, mask_refine, Detector)를 그대로 쓰고, 이 파일은
 "설정 -> 단계 연결 -> 결과 정리"만 맡는다.
 
+    mode="2d" 이면 3D 정합(ICP) 대신 형상 보정 템플릿에서 픽 포인트/회전을 바로 구한다
+    (app/core/pose_from_template.py, 5-2 탭). 형상 보정이 켜져 있어야 하고, 보정이 성공한 검출만 후보가 된다.
+
     ROI 크롭                settings.detection.roi_*
     2D 검출 (RTMDet-Ins)    settings.detection.*
     형상 보정 (선택)        settings.refine.*      (실패하면 원본 마스크로 계속 진행)
@@ -33,7 +36,7 @@ from typing import Callable
 import cv2
 import numpy as np
 
-from app.core import icp_runner
+from app.core import icp_runner, pose_from_template
 from app.core.app_settings import SettingsData
 from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd
 from app.core.detector import Detection, Detector
@@ -81,18 +84,25 @@ class PickRunResult:
     # 의심 마스크로 제외된 검출: (제외 전 번호, 사유, confidence)
     suspect_excluded: list[tuple[int, str, float]] = field(default_factory=list)
     icp_results: list[ICPResult] = field(default_factory=list)
+    # mode="2d" 전용: 인스턴스별 2D 기반 pose (detections와 index 일치), 화면 표시용 카메라 모델/CAD 크기
+    mode: str = "icp"
+    pose2d_results: list = field(default_factory=list)
+    intrinsics: tuple | None = None
+    cad_extent_mm: float = 60.0
     timings_ms: dict[str, float] = field(default_factory=dict)
 
     def summary(self) -> str:
         n_det = len(self.detections)
-        n_ok = sum(r.ok for r in self.icp_results)
+        n_ok = sum(p.ok for p in self.pose2d_results) if self.mode == "2d" else sum(r.ok for r in self.icp_results)
         total = self.timings_ms.get("total")
         t = f", {total:.0f}ms" if total is not None else ""
         if self.suspect_excluded:
             t = f", 의심 마스크 {len(self.suspect_excluded)}건 제외" + t
         if self.ok:
-            return f"성공: 검출 {n_det} / 정합 성공 {n_ok} / 후보 {len(self.candidates)}{t}"
-        return f"실패 [{self.error_code}] {self.error_message} (검출 {n_det}, 정합 성공 {n_ok}){t}"
+            what = "2D 계산 성공" if self.mode == "2d" else "정합 성공"
+            return f"성공: 검출 {n_det} / {what} {n_ok} / 후보 {len(self.candidates)}{t}"
+        what = "2D 계산 성공" if self.mode == "2d" else "정합 성공"
+        return f"실패 [{self.error_code}] {self.error_message} (검출 {n_det}, {what} {n_ok}){t}"
 
 
 def sort_candidates(cands: list[PickCandidate], mode: str) -> list[PickCandidate]:
@@ -104,7 +114,10 @@ def sort_candidates(cands: list[PickCandidate], mode: str) -> list[PickCandidate
 
 
 class PickPipeline:
-    def __init__(self, log: Callable[[str], None] | None = None):
+    def __init__(self, log: Callable[[str], None] | None = None, mode: str = "icp"):
+        if mode not in ("icp", "2d"):
+            raise ValueError(f"mode는 'icp' 또는 '2d': {mode!r}")
+        self.mode = mode
         self._log = log or (lambda _m: None)
         self._detector: Detector | None = None
         self._detector_key: tuple | None = None
@@ -125,6 +138,10 @@ class PickPipeline:
         detector = self._ensure_detector(snap)
         if detector._inferencer is None:
             detector.load_model()   # predict() 첫 호출 때 일어나는 모델 로드를 미리 해둔다
+        if self.mode == "2d":
+            self._ensure_cad_pcd(snap)
+            get_bank(self._cad_path(snap))              # 템플릿 뱅크(실루엣)도 미리 만든다
+            return
         self._ensure_cad(snap)
         icp_runner._build_default_estimator(snap.icp)   # 알고리즘 설정 오류를 미리 발견
 
@@ -152,8 +169,8 @@ class PickPipeline:
             raise PipelineError("CONFIG_ERROR", f"CAD 파일이 없습니다: {snap.cad.cad_path}")
         return p
 
-    def _ensure_cad(self, snap: SettingsData) -> None:
-        """CAD 준비: CAD 로드(+축 보정)와 가시면 계산. 값이 바뀔 때만 다시 계산한다."""
+    def _ensure_cad_pcd(self, snap: SettingsData) -> None:
+        """CAD 로드(+축 보정)만. 값이 바뀔 때만 다시 계산한다."""
         p = self._cad_path(snap)
         params = snap.icp
         load_key = (str(p), p.stat().st_mtime_ns, params.cad_axis_correction_deg)
@@ -163,6 +180,11 @@ class PickPipeline:
             self._cad_pcd = icp_runner.load_cad_as_pcd(str(p), params)
             self._cad_load_key = load_key
             self._cad_vis_key = None
+
+    def _ensure_cad(self, snap: SettingsData) -> None:
+        """CAD 준비: CAD 로드(+축 보정)와 가시면 계산. 값이 바뀔 때만 다시 계산한다."""
+        self._ensure_cad_pcd(snap)
+        params = snap.icp
         vis_key = (params.init_rotation_deg, params.cad_hpr_ref_distance_m, params.cad_hpr_radius_factor)
         if self._cad_vis_key != vis_key:
             normal, flipped = icp_runner.build_visible_cad_pair(self._cad_pcd, params)
@@ -193,15 +215,22 @@ class PickPipeline:
     def _run(self, frame, snap: SettingsData, res: PickRunResult) -> None:
         pcd, valid = frame.points_organized, frame.valid_mask.astype(bool)
         res.image_path = self._save_frame_image(frame.intensity)
+        res.mode = self.mode
 
         # ---- 준비 (설정 오류는 여기서 CONFIG_ERROR로 끝낸다) ----
         detector = self._ensure_detector(snap)
-        self._ensure_cad(snap)
         params: ICPParams = snap.icp
-        try:
-            icp_runner._build_default_estimator(params)
-        except Exception as exc:  # noqa: BLE001
-            raise PipelineError("CONFIG_ERROR", f"정합 알고리즘 설정 오류: {exc}") from exc
+        if self.mode == "2d":
+            if not snap.refine.enabled:
+                raise PipelineError("CONFIG_ERROR", "2D 기반 모드는 형상 보정이 켜져 있어야 합니다 "
+                                    "(설정 탭 > 검출/CAD > 형상 보정 사용).")
+            self._ensure_cad_pcd(snap)
+        else:
+            self._ensure_cad(snap)
+            try:
+                icp_runner._build_default_estimator(params)
+            except Exception as exc:  # noqa: BLE001
+                raise PipelineError("CONFIG_ERROR", f"정합 알고리즘 설정 오류: {exc}") from exc
 
         # ---- 2D 검출 (ROI 크롭 포함) ----
         t = time.perf_counter()
@@ -232,6 +261,10 @@ class PickPipeline:
         if not res.detections:
             raise PipelineError("NO_DETECTION", f"검출 {len(raw)}건이 모두 의심 마스크로 제외됨 "
                                 f"({'; '.join(why for _i, why, _c in res.suspect_excluded[:3])})")
+
+        if self.mode == "2d":
+            self._run_2d(pcd, valid, snap, res)
+            return
 
         # ---- 3D 정합 ----
         t = time.perf_counter()
@@ -274,6 +307,38 @@ class PickPipeline:
             first_err = next((r.error for r in res.icp_results if r.error), "")
             raise PipelineError("NO_VALID_POSE",
                                 f"정합 성공 0/{len(res.icp_results)}{best} ({first_err})")
+        res.ok = True
+
+    def _run_2d(self, pcd, valid, snap: SettingsData, res: PickRunResult) -> None:
+        """ICP 없이: 형상 보정이 고른 템플릿에서 픽 포인트/회전을 바로 구한다."""
+        t = time.perf_counter()
+        if len(res.refine_results) != len(res.detections):
+            raise PipelineError("REFINE_ERROR", "형상 보정을 실행하지 못했습니다 (로그 확인)")
+        bank = get_bank(self._cad_path(snap))
+        intr = estimate_intrinsics_from_organized_pcd(pcd, valid)
+        res.intrinsics = tuple(float(v) for v in intr)
+        res.cad_extent_mm = float(self._cad_pcd.get_axis_aligned_bounding_box().get_max_extent()) * 1000.0
+        center_mm = np.asarray(self._cad_pcd.get_center(), dtype=np.float64) * 1000.0   # ICP와 같은 정의의 CAD 중심
+        cands: list[PickCandidate] = []
+        for i, rr in enumerate(res.refine_results):
+            p = pose_from_template.pose_from_refine(
+                rr, bank, intr, cad_axis_deg=snap.icp.cad_axis_correction_deg, cad_center_mm=center_mm,
+                depth_correct=bool(snap.refine.depth_correct))
+            res.pose2d_results.append(p)
+            if not p.ok:
+                continue
+            det = res.detections[i]
+            e = p.pose["euler_deg"]
+            cands.append(PickCandidate(
+                instance_id=i, label=det.label, confidence=float(det.confidence),
+                xyz_mm=tuple(float(v) for v in p.pick_point_mm),
+                rpy_deg=(float(e["roll_deg"]), float(e["pitch_deg"]), float(e["yaw_deg"])),
+                fitness=float(rr.score), rmse_mm=0.0))   # 2D 기반에서 fitness 자리는 형상 보정 score
+        res.timings_ms["pose2d"] = (time.perf_counter() - t) * 1000.0
+        res.candidates = sort_candidates(cands, snap.tcp.sort_mode)
+        if not res.candidates:
+            first_err = next((p.error for p in res.pose2d_results if p.error), "")
+            raise PipelineError("NO_VALID_POSE", f"2D 기반 계산 성공 0/{len(res.pose2d_results)} ({first_err})")
         res.ok = True
 
     def _refine(self, detections: list[Detection], pcd, valid, snap: SettingsData

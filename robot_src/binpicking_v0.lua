@@ -1,5 +1,5 @@
 -- ============================================================
--- 푸른로봇 심포니 : 경량화된 빈피킹 TCP 스크립트
+-- 푸른로봇 심포니 : 직관적인 빈피킹 TCP 스크립트 (함수 제거 버전)
 -- ============================================================
 
 ---------------------------- 설정 ----------------------------
@@ -11,121 +11,94 @@ local PLACE_POSE       = {400.0, -200.0, 150.0, 180.0, 0.0, 0.0}
 
 local WS_MIN           = {-600.0, -600.0, 0.0}
 local WS_MAX           = { 600.0,  600.0, 600.0}
-local GRIP_WAIT_MS     = 500               -- 그리퍼 대기시간 (ms)[cite: 1]
+local GRIP_WAIT_MS     = 500               -- 그리퍼 대기시간 (ms)
 
 local MOVE_SPEED       = "30"              -- 이동 속도 (%)
 local WORKFRAME        = 0
 local TOOLFRAME        = 0
-local GRIP_CLOSE_PORT  = 1                 -- 파지 DO 포트[cite: 1]
-local GRIP_OPEN_PORT   = nil               -- 단동 그리퍼 가정
+local GRIP_CLOSE_PORT  = 1                 -- 파지 DO 포트
 
 local MAX_CYCLES       = 0                 -- 0 = 무한 반복
 local MAX_ERRORS       = 3                 -- 연속 실패 허용 횟수
 
------------------- 로봇 동작 ------------------
-local function move_linear(p)
-    local target = pose(p[1], p[2], p[3], p[4], p[5], p[6], WORKFRAME, TOOLFRAME)
-    movel(target, "b0", MOVE_SPEED) --
-end
-
-local function gripper(close)
-    if close then
-        if GRIP_OPEN_PORT then dio.reset(GRIP_OPEN_PORT) end --[cite: 1]
-        dio.set(GRIP_CLOSE_PORT) --[cite: 1]
-    else
-        dio.reset(GRIP_CLOSE_PORT) --[cite: 1]
-        if GRIP_OPEN_PORT then dio.set(GRIP_OPEN_PORT) end --[cite: 1]
-    end
-end
-
--------------------------- 유틸 --------------------------
-local function above(p, dz)
-    return {p[1], p[2], p[3] + dz, p[4], p[5], p[6]}
-end
-
-local function in_workspace(p)
-    for i = 4, 6 do
-        if p[i] < -180.0 or p[i] > 180.0 then return false end --
-    end
-    for i = 1, 3 do
-        if p[i] < WS_MIN[i] or p[i] > WS_MAX[i] then return false end --
-    end
-    return true
-end
-
 ------------------------ TCP 통신 ------------------------
-local cli = client(SERVER_IP, SERVER_PORT) --[cite: 1]
+local cli = client(SERVER_IP, SERVER_PORT)
 
-local function connect()
-    if cli.open() ~= 0 then --[cite: 1]
-        print("서버 연결 실패")
-        return false
-    end
-    cli.flush() --[cite: 1]
-    return true
+-- 1. TCP 서버 연결
+if cli.open() ~= 0 then
+    error("TCP 서버 연결 실패!")
 end
 
--- 좌표 요청 (요청 1byte 송신 -> double 6개=48byte 수신)[cite: 1]
-local function request_pose()
-    cli.flush() --[cite: 1]
+local cycle, errors = 0, 0
+
+---------------------------- 메인 반복 ----------------------------
+while (MAX_CYCLES == 0 or cycle < MAX_CYCLES) do
+    cycle = cycle + 1
+    cli.flush()
     
-    -- 1. 1바이트 커맨드 전송[cite: 1]
-    cli.add_byte(1) --[cite: 1]
-    if cli.send() ~= 0 then return nil, "송신 실패" end --[cite: 1]
+    -- 2. 좌표 요청 (1byte 송신)
+    cli.add_byte(1)
+    if cli.send() == 0 and cli.recv(48) == 0 then
+        -- 3. 좌표 수신 (double 6개)
+        local ret, x  = cli.get_double()
+        local ret, y  = cli.get_double()
+        local ret, z  = cli.get_double()
+        local ret, rx = cli.get_double()
+        local ret, ry = cli.get_double()
+        local ret, rz = cli.get_double()
 
-    -- 2. 48바이트 (double * 6) 수신 대기[cite: 1]
-    if cli.recv(48) ~= 0 then return nil, "수신 실패" end --[cite: 1]
+        -- 4. 작업영역 검사
+        local valid = (x >= WS_MIN[1] and x <= WS_MAX[1]) and
+                      (y >= WS_MIN[2] and y <= WS_MAX[2]) and
+                      (z >= WS_MIN[3] and z <= WS_MAX[3])
 
-    -- 3. 버퍼에서 좌표 데이터 꺼내기[cite: 1]
-    local pick = {}
-    for i = 1, 6 do
-        local ret, val = cli.get_double() --[cite: 1]
-        if ret ~= 0 then return nil, "데이터 수신 에러" end
-        pick[i] = val
-    end
-
-    if not in_workspace(pick) then return nil, "작업영역 밖 좌표" end
-    return pick
-end
-
--------------------------- 시퀀스 --------------------------
-local function pick_and_place(pick)
-    gripper(false)
-    move_linear(above(pick, APPROACH_DZ))
-    move_linear(pick)
-    gripper(true)
-    delay(GRIP_WAIT_MS) --[cite: 1]
-    move_linear(above(pick, APPROACH_DZ))
-
-    move_linear(above(PLACE_POSE, APPROACH_DZ))
-    move_linear(PLACE_POSE)
-    gripper(false)
-    delay(GRIP_WAIT_MS) --[cite: 1]
-    move_linear(above(PLACE_POSE, APPROACH_DZ))
-end
-
----------------------------- 메인 ----------------------------
-if not in_workspace(PLACE_POSE) then
-    error("PLACE_POSE 가 작업영역 밖입니다")
-end
-
-if connect() then
-    local cycle, errors = 0, 0
-    while (MAX_CYCLES == 0 or cycle < MAX_CYCLES) do
-        cycle = cycle + 1
-        local pick, why = request_pose()
-        if pick then
-            print("cycle " .. cycle .. " 피킹 완료")
-            pick_and_place(pick)
+        if valid then
+            print("cycle " .. cycle .. ": 피킹 동작 시작")
             errors = 0
+
+            -- [1] 그리퍼 열기
+            dio.reset(GRIP_CLOSE_PORT)
+
+            -- [2] 피킹 상공 이동
+            movel(pose(x, y, z + APPROACH_DZ, rx, ry, rz, WORKFRAME, TOOLFRAME), "b0", MOVE_SPEED)
+
+            -- [3] 피킹 위치 하강
+            movel(pose(x, y, z, rx, ry, rz, WORKFRAME, TOOLFRAME), "b0", MOVE_SPEED)
+
+            -- [4] 그리퍼 파지 & 대기
+            dio.set(GRIP_CLOSE_PORT)
+            delay(GRIP_WAIT_MS)
+
+            -- [5] 피킹 상공으로 상승
+            movel(pose(x, y, z + APPROACH_DZ, rx, ry, rz, WORKFRAME, TOOLFRAME), "b0", MOVE_SPEED)
+
+            -- [6] 플레이스 상공 이동
+            movel(pose(PLACE_POSE[1], PLACE_POSE[2], PLACE_POSE[3] + APPROACH_DZ, PLACE_POSE[4], PLACE_POSE[5], PLACE_POSE[6], WORKFRAME, TOOLFRAME), "b0", MOVE_SPEED)
+
+            -- [7] 플레이스 위치 하강
+            movel(pose(PLACE_POSE[1], PLACE_POSE[2], PLACE_POSE[3], PLACE_POSE[4], PLACE_POSE[5], PLACE_POSE[6], WORKFRAME, TOOLFRAME), "b0", MOVE_SPEED)
+
+            -- [8] 그리퍼 해제 & 대기
+            dio.reset(GRIP_CLOSE_PORT)
+            delay(GRIP_WAIT_MS)
+
+            -- [9] 플레이스 상공으로 상승
+            movel(pose(PLACE_POSE[1], PLACE_POSE[2], PLACE_POSE[3] + APPROACH_DZ, PLACE_POSE[4], PLACE_POSE[5], PLACE_POSE[6], WORKFRAME, TOOLFRAME), "b0", MOVE_SPEED)
+
         else
             errors = errors + 1
-            print("cycle " .. cycle .. " 실패(" .. errors .. "/" .. MAX_ERRORS .. "): " .. why)
-            if errors >= MAX_ERRORS then
-                print("연속 오류 한도 초과로 종료합니다.")
-                break
-            end
+            print("cycle " .. cycle .. ": 작업영역 이탈 좌표 수신")
         end
+    else
+        errors = errors + 1
+        print("cycle " .. cycle .. ": 통신 에러")
     end
-    cli.close() --[cite: 1]
+
+    -- 연속 에러 누적 시 안전 종료
+    if errors >= MAX_ERRORS then
+        print("연속 오류 한도 초과로 종료합니다.")
+        break
+    end
 end
+
+cli.close()

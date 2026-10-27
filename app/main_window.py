@@ -24,6 +24,8 @@ from app.tabs.data_collection_tab import DataCollectionTab
 from app.tabs.data_session_tab import DataSessionTab
 from app.tabs.inference_test_tab import InferenceTestTab
 from app.tabs.icp_detection_test_tab import ICPDetectionTestTab
+from app.tabs.icp_detection_2d_tab import ICPDetection2DTab
+from app.tabs.tcp_server_2d_tab import TcpServer2DTab
 from app.tabs.live_capture_icp_tab import LiveCaptureICPTab
 from app.tabs.live_label_generation_tab import LiveLabelGenerationTab
 from app.tabs.rothead_only_icp_tab import RotHeadOnlyICPTab
@@ -121,9 +123,17 @@ class MainWindow(QMainWindow):
         self.icp_tab = ICPDetectionTestTab()
         self._add_leaf("4. ICP 검출 테스트", self.icp_tab)
 
+        # 4-1: ICP 없이 형상 보정(CAD 템플릿)만으로 픽 포인트/회전을 구해 4번 결과와 비교
+        self.icp2d_tab = ICPDetection2DTab()
+        self._add_leaf("4-1. ICP 검출 테스트 (2D 기반)", self.icp2d_tab)
+
         # 5번: 로봇 TCP 요청을 기다렸다가 촬영 -> 검출 -> 정합 -> 좌표 응답 (값은 12번 설정 탭에서 관리)
         self.tcp_tab = TcpServerTab()
         self._add_leaf("5. ICP 정합 TCP 서버", self.tcp_tab)
+
+        # 5-2: 같은 서버를 ICP 없이 2D 기반(형상 보정 템플릿)으로 - 포트는 설정의 '5-2 탭' 포트
+        self.tcp2d_tab = TcpServer2DTab()
+        self._add_leaf("5-2. 2D 기반 TCP 서버", self.tcp2d_tab)
 
         # 기존 5번(실시간 촬영 + 파라미터를 바꿔 가며 눈으로 확인하는 용도)은 5-1로 유지.
         self.icp_tcp_tab = LiveCaptureICPTab()
@@ -163,7 +173,9 @@ class MainWindow(QMainWindow):
             tab.log_message.connect(self.log_console.append_log)
         self.inference_tab.log_message.connect(self.log_console.append_log)
         self.icp_tab.log_message.connect(self.log_console.append_log)
+        self.icp2d_tab.log_message.connect(self.log_console.append_log)
         self.tcp_tab.log_message.connect(self.log_console.append_log)
+        self.tcp2d_tab.log_message.connect(self.log_console.append_log)
         self.icp_tcp_tab.log_message.connect(self.log_console.append_log)
         self.label_gen_tab.log_message.connect(self.log_console.append_log)
         self.rothead_test_tab.log_message.connect(self.log_console.append_log)
@@ -229,6 +241,7 @@ class MainWindow(QMainWindow):
                 event.ignore()   # 검증/쓰기 실패 -> 종료하지 않고 설정 탭에서 해결하게 한다
                 return
         self.tcp_tab.shutdown()   # TCP 서버 정지 + 켜둔 카메라 해제
+        self.tcp2d_tab.shutdown()
         super().closeEvent(event)
 
     def _on_nav_changed(self, current: QTreeWidgetItem | None, previous: QTreeWidgetItem | None) -> None:

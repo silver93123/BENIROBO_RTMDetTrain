@@ -14,7 +14,7 @@
            NG,<코드>                                  실패
            PONG                                       PING 응답
     NG 코드: NO_DETECTION, NO_VALID_POSE, CAMERA_ERROR, CONFIG_ERROR, DETECTION_ERROR,
-             INTERNAL_ERROR, BUSY (이전 요청 처리 중), UNKNOWN_CMD, TIMEOUT
+             REFINE_ERROR (2D 기반 전용), INTERNAL_ERROR, BUSY (이전 요청 처리 중), UNKNOWN_CMD, TIMEOUT
     단위: 카메라 좌표계 mm / deg (핸드-아이 변환은 로봇 쪽에서)
 
 요청 끝 문자는 \\n, \\r\\n, \\r 모두 받는다. 끝 문자 없이 "PICK"만 보내는 클라이언트도
@@ -130,8 +130,9 @@ class PickWorker:
 
     def __init__(self, store: SettingsStore,
                  camera_factory: Callable[[dict], object] | None = None,
-                 log: Callable[[str], None] | None = None):
+                 log: Callable[[str], None] | None = None, mode: str = "icp"):
         self._store = store
+        self.mode = mode
         self._factory = camera_factory or _default_camera_factory
         self._log = log or (lambda _m: None)
         self._jobs: "queue.Queue[tuple | None]" = queue.Queue()
@@ -141,7 +142,7 @@ class PickWorker:
         # 아래는 워커 스레드에서만 건드린다
         self._cam = None
         self._cam_key: tuple | None = None
-        self._pipeline = PickPipeline(log=self._log)
+        self._pipeline = PickPipeline(log=self._log, mode=mode)
 
     # ---- 외부 API (아무 스레드에서나) ----
     def is_busy(self) -> bool:
@@ -268,8 +269,10 @@ class PickServer(QObject):
     run_finished = pyqtSignal(object)           # PickRunResult (TCP 요청으로 돈 것)
     log_message = pyqtSignal(str)
 
-    def __init__(self, store: SettingsStore, worker: PickWorker, parent: QObject | None = None):
+    def __init__(self, store: SettingsStore, worker: PickWorker, parent: QObject | None = None,
+                 use_port_2d: bool = False):
         super().__init__(parent)
+        self._use_port_2d = use_port_2d   # True면 설정의 port_2d (5-2 탭), 아니면 port (5번 탭)
         self._store = store
         self._worker = worker
         self._sock: socket.socket | None = None
@@ -283,18 +286,23 @@ class PickServer(QObject):
     def is_running(self) -> bool:
         return self._sock is not None
 
+    def port(self) -> int:
+        tcp = self._store.snapshot().tcp
+        return int(tcp.port_2d if self._use_port_2d else tcp.port)
+
     def start(self) -> None:
         """리슨 시작. 포트가 이미 쓰이는 중이면 OSError."""
         if self._sock is not None:
             return
         tcp = self._store.snapshot().tcp
+        port = self.port()
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             if os.name == "nt":   # Windows의 REUSEADDR은 이중 바인드를 허용해서 쓰지 않는다
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
             else:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((tcp.host, int(tcp.port)))
+            sock.bind((tcp.host, port))
             sock.listen(5)
             sock.settimeout(0.5)
         except OSError:
@@ -304,8 +312,8 @@ class PickServer(QObject):
         self._stop_evt.clear()
         self._accept_thread = threading.Thread(target=self._accept_loop, name="PickAccept", daemon=True)
         self._accept_thread.start()
-        self.status_changed.emit(f"listening {tcp.host}:{tcp.port}")
-        self.log_message.emit(f"TCP 서버 시작: {tcp.host}:{tcp.port}  "
+        self.status_changed.emit(f"listening {tcp.host}:{port}")
+        self.log_message.emit(f"TCP 서버 시작: {tcp.host}:{port}  "
                               f"(요청 '{tcp.trigger_cmd}' / '{tcp.ping_cmd}')")
 
         if tcp.warmup_on_start:

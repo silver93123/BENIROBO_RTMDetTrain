@@ -478,7 +478,12 @@ class SettingsTab(QWidget):
         rg.addWidget(c1, 2, 0, 1, 2); rg.addWidget(c2, 2, 2, 1, 2)
         self._bind(PAGE_DETECT, "refine", "depth_phi", c1)
         self._bind(PAGE_DETECT, "refine", "resolve_overlap", c2)
-        rg.setColumnStretch(4, 1)
+        dc = QCheckBox("2D 기반: 표면→중심 깊이 보정")
+        dc.setToolTip("4-1 탭 / 5-2 서버(ICP 없이 형상 보정 템플릿으로 픽 포인트 계산)에서, 보이는 표면 depth에\n"
+                      "중심까지의 거리(원통 근사)를 더해 CAD 중심 depth로 만듭니다. 끄면 표면 depth 그대로.")
+        rg.addWidget(dc, 2, 4, 1, 2)
+        self._bind(PAGE_DETECT, "refine", "depth_correct", dc)
+        rg.setColumnStretch(6, 1)
 
         # 의심 마스크 제외 (3번 오프라인 검출 테스트 탭의 '의심 마스크 숨기기'와 같은 기준)
         sus = QCheckBox("의심 마스크 제외")
@@ -648,8 +653,12 @@ class SettingsTab(QWidget):
         cf.addRow("호스트(바인드 주소)", host)
         self._bind(PAGE_TCP, "tcp", "host", host)
         port = self._spin(1, 65535, 1, 0)
-        cf.addRow("포트", port)
+        cf.addRow("포트 (5번 탭: ICP 기반)", port)
         self._bind(PAGE_TCP, "tcp", "port", port)
+        port2d = self._spin(1, 65535, 1, 0)
+        port2d.setToolTip("5-2 탭(2D 기반 TCP 서버)이 쓰는 포트. 5번 서버와 동시에 켜려면 다르게 둡니다.")
+        cf.addRow("포트 (5-2 탭: 2D 기반)", port2d)
+        self._bind(PAGE_TCP, "tcp", "port_2d", port2d)
         cf.addRow(self._hint("호스트/포트는 서버를 다시 시작해야 적용됩니다."))
         outer.addWidget(conn)
 

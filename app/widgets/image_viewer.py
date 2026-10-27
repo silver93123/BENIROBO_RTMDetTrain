@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import numpy as np
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal
+from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal
 from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QFont, QImage
-from PyQt6.QtWidgets import QLabel, QSizePolicy
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QSlider, QWidget
 
 from app.core.detector import Detection
 
@@ -16,6 +16,31 @@ POSE_OVERLAY_COLOR = QColor(0, 220, 255, POSE_OVERLAY_ALPHA)  # 하늘색 - 노�
 
 
 ROI_MIN_SIZE = 16  # px, 드래그로 이보다 작게 그리면 클릭으로 보고 무시
+
+
+def make_label_opacity_bar(viewer: "ImageViewer", initial_percent: int = 70) -> QWidget:
+    """'라벨 투명도' 슬라이더. 박스/마스크 정보 라벨과 픽 포인트 좌표 라벨의 불투명도를 조절한다 (0=숨김, 100=불투명)."""
+    box = QWidget()
+    lay = QHBoxLayout(box)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.addWidget(QLabel("라벨 투명도"))
+    slider = QSlider(Qt.Orientation.Horizontal)
+    slider.setRange(0, 100)
+    slider.setFixedWidth(110)
+    slider.setToolTip("박스/라벨/좌표 글자의 불투명도. 0이면 숨김, 100이면 불투명")
+    value = QLabel("")
+    value.setFixedWidth(34)
+
+    def _apply(v: int) -> None:
+        value.setText(f"{v}%")
+        viewer.set_box_opacity(v / 100.0)
+
+    slider.valueChanged.connect(_apply)
+    slider.setValue(int(initial_percent))
+    lay.addWidget(slider)
+    lay.addWidget(value)
+    box.slider = slider
+    return box
 
 
 class ImageViewer(QLabel):
@@ -31,6 +56,7 @@ class ImageViewer(QLabel):
         self._base_pixmap: QPixmap | None = None
         self._detections: list[Detection] = []
         self._pose_overlays: dict[int, np.ndarray] = {}  # obj index -> (N,2) 투영된 2D 점
+        self._pick_overlays: list[dict] = []  # 픽 포인트 + 좌표축 (set_pick_overlays 참고)
         self._box_opacity = 1.0  # 0~1, bbox 테두리/라벨 불투명도 (기본 1 = 기존 동작)
         self._roi: tuple[int, int, int, int] | None = None  # 표시할 ROI (이미지 좌표)
         self._roi_drawing = False        # True면 마우스 드래그로 ROI를 그릴 수 있다
@@ -42,6 +68,17 @@ class ImageViewer(QLabel):
         self._base_pixmap = QPixmap(path)
         self._detections = []
         self._pose_overlays = {}
+        self._pick_overlays = []
+        self._refresh()
+
+    def set_pick_overlays(self, overlays: list[dict] | None) -> None:
+        """픽 포인트와 회전 좌표축(X 빨강 / Y 초록 / Z 파랑)을 이미지 위에 그린다.
+
+        overlays 항목: {"origin": (u, v), "axes": [(u, v) x3: X/Y/Z 축 끝점],
+                        "label": "obj0\nX.. Y.. Z..\nR.. P.. Y..", "color": QColor | None}
+        None 또는 빈 리스트면 지운다.
+        """
+        self._pick_overlays = list(overlays or [])
         self._refresh()
 
     def set_detections(self, detections: list[Detection]) -> None:
@@ -116,7 +153,7 @@ class ImageViewer(QLabel):
         super().mouseReleaseEvent(event)
 
     def set_box_opacity(self, opacity: float) -> None:
-        """bbox 테두리와 라벨의 불투명도(0=완전 투명 ~ 1=불투명). 박스가 물체를 가릴 때 낮춘다."""
+        """bbox 테두리/라벨과 픽 포인트 좌표 라벨의 불투명도(0=완전 투명 ~ 1=불투명). 라벨이 물체를 가릴 때 낮춘다."""
         self._box_opacity = min(1.0, max(0.0, float(opacity)))
         self._refresh()
 
@@ -202,6 +239,8 @@ class ImageViewer(QLabel):
                 painter.drawEllipse(QRectF(x - POSE_OVERLAY_RADIUS, y - POSE_OVERLAY_RADIUS,
                                             POSE_OVERLAY_RADIUS * 2, POSE_OVERLAY_RADIUS * 2))
 
+        self._draw_pick_overlays(painter, canvas.width())
+
         painter.end()
 
         scaled = canvas.scaled(
@@ -210,6 +249,44 @@ class ImageViewer(QLabel):
             Qt.TransformationMode.SmoothTransformation,
         )
         self.setPixmap(scaled)
+
+    def _draw_pick_overlays(self, painter: QPainter, image_w: int) -> None:
+        """픽 포인트(원) + 축 3개(X/Y/Z) + 좌표 텍스트. 굵기/글자는 이미지 폭에 비례."""
+        if not self._pick_overlays:
+            return
+        # 화면에 표시되는 크기가 이미지 해상도와 무관하게 거의 일정하도록 축소 비율만큼 키운다.
+        unit = max(1.0, image_w / max(self.width(), 1))
+        axis_colors = [QColor(230, 40, 40), QColor(40, 190, 60), QColor(50, 100, 255)]
+        axis_names = ["X", "Y", "Z"]
+        font = QFont()
+        font.setPixelSize(int(11 * unit))
+        font.setBold(True)
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+        for ov in self._pick_overlays:
+            ox, oy = ov["origin"]
+            for (ex, ey), col, name in zip(ov["axes"], axis_colors, axis_names):
+                painter.setPen(QPen(col, 2.5 * unit, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                painter.drawLine(QPointF(ox, oy), QPointF(ex, ey))
+                painter.drawText(QPointF(ex + 3 * unit, ey - 3 * unit), name)
+            painter.setPen(QPen(QColor("white"), 2 * unit))
+            painter.setBrush(ov.get("dot") or QColor(255, 220, 0))
+            r = 4 * unit
+            painter.drawEllipse(QRectF(ox - r, oy - r, 2 * r, 2 * r))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+
+            lines = str(ov.get("label", "")).split("\n")
+            painter.setOpacity(self._box_opacity)   # 라벨이 이미지를 가리면 슬라이더로 옅게/숨김
+            if lines and lines[0] and self._box_opacity > 0.0:
+                w = max(fm.horizontalAdvance(t) for t in lines) + int(10 * unit)
+                h = fm.height() * len(lines) + int(6 * unit)
+                bx = ox + 12 * unit
+                by = oy - 12 * unit - h if ov.get("label_above") else oy + 12 * unit
+                painter.fillRect(QRectF(bx, by, w, h), QColor(0, 0, 0, 170))
+                painter.setPen(QPen(QColor("white")))
+                for k, t in enumerate(lines):
+                    painter.drawText(QPointF(bx + 5 * unit, by + fm.ascent() + k * fm.height() + 3 * unit), t)
+            painter.setOpacity(1.0)
 
     @staticmethod
     def _mask_to_qimage(mask: np.ndarray, color: QColor) -> QImage | None:
