@@ -55,8 +55,9 @@ from app.core.detector import Detection, Detector
 from app.core.icp_param_specs import B_SECTIONS, FGR_SPECS
 from app.core.icp_runner import ICPParams, ICPResult
 from app.core.paths import DEFAULT_DATASET_ROOT
+from app.core.pick_pipeline import PickPipeline
 from app.core.registration import AVAILABLE_REGISTRATION_TYPES
-from app.widgets.image_viewer import ImageViewer, make_label_opacity_bar
+from app.widgets.image_viewer import ImageViewer, make_label_opacity_bar, make_zoom_bar
 from src.detection.mask_refine import RefineParams, RefineResult, get_bank, refine_masks
 
 DEFAULT_SCORE_THRESHOLD = 0.3
@@ -99,6 +100,7 @@ class ICPDetectionTestTab(QWidget):
         self._raw_detections: list[Detection] = []    # 모델 원본 출력
         self._detections: list[Detection] = []        # ICP에 쓰이는 검출 (보정 켜면 보정본)
         self._refine_results: list[RefineResult] = []  # _detections와 index 일치 (보정 안 했으면 빈 리스트)
+        self._suspect_excluded: list[tuple[int, str, float]] = []  # 의심 마스크로 뺀 검출: (원본 번호, 사유, conf)
         self._refine_applied = False
         self._detector: Detector | None = None
         self._detector_key: tuple[str, str] | None = None
@@ -162,6 +164,11 @@ class ICPDetectionTestTab(QWidget):
         self.image_viewer.roi_changed.connect(self._on_roi_drawn)
         self.opacity_bar = make_label_opacity_bar(self.image_viewer)   # 라벨이 물체를 가릴 때 투명도 조절
         self._top_row.addWidget(self.opacity_bar)
+        zoom_row = QHBoxLayout()
+        zoom_row.addStretch(1)
+        zoom_row.addWidget(make_zoom_bar(self.image_viewer))   # 휠 확대/축소 + 가운데 버튼 이동 (왼쪽 드래그 = ROI)
+        center.addLayout(zoom_row)
+        self.image_viewer.setMinimumSize(320, 240)
         center.addWidget(self.image_viewer, stretch=1)
         root.addLayout(center, stretch=2)
 
@@ -295,6 +302,13 @@ class ICPDetectionTestTab(QWidget):
             "보정된 마스크끼리 겹친 픽셀을 한쪽에만 남긴다.\n같은 물체의 중복 검출(IoU 0.8 이상)은 건드리지 않는다."
         )
         refine_row2.addWidget(self.chk_overlap)
+        self.chk_suspect = QCheckBox("의심 마스크 제외")
+        self.chk_suspect.setChecked(get_settings().snapshot().refine.hide_suspect)
+        self.chk_suspect.setToolTip(
+            "형상 보정 결과의 품질이 나쁜 검출(템플릿 적합 점수 낮음 / 마스크 변경 과다 / 보정 포기 등)을 정합·좌표 계산에서 뺍니다.\n"
+            "5번/5-2 서버의 같은 옵션과 동일한 기준(12. 설정 탭의 의심 마스크 기준값)을 씁니다. 형상 보정이 켜져 있어야 동작합니다.")
+        self.chk_suspect.toggled.connect(lambda _=None: self._on_refine_option_changed())
+        refine_row2.addWidget(self.chk_suspect)
         self.btn_refine_apply = QPushButton("보정 재적용")
         self.btn_refine_apply.setToolTip("재추론 없이 현재 검출 결과에 보정만 다시 적용 (파라미터 튜닝/CAD 변경용)")
         self.btn_refine_apply.clicked.connect(lambda _=False: self._on_refine_option_changed(force=True))
@@ -596,6 +610,7 @@ class ICPDetectionTestTab(QWidget):
         self._raw_detections = []
         self._detections = []
         self._refine_results = []
+        self._suspect_excluded = []
         self._refine_applied = False
         self._icp_results = []
         self.refine_status.setText("")
@@ -731,7 +746,27 @@ class ICPDetectionTestTab(QWidget):
 
         self._detections, self._refine_results = self._maybe_refine(self._raw_detections)
         self._refine_applied = bool(self._refine_results)
+        self._drop_suspect_masks()
         self.image_viewer.set_detections(self._detections)
+
+    def _drop_suspect_masks(self) -> None:
+        """'의심 마스크 제외'가 켜져 있으면 보정 품질이 나쁜 검출을 _detections/_refine_results에서 함께 뺀다.
+
+        5번/5-2 서버(PickPipeline._drop_suspect)와 같은 함수/기준을 쓴다. 보정 결과가 없으면(꺼짐/실패) 아무것도 빼지 않는다.
+        """
+        self._suspect_excluded = []
+        if not self.chk_suspect.isChecked():
+            return
+        cfg = dataclasses.replace(get_settings().snapshot().refine, hide_suspect=True)
+        self._detections, self._refine_results, self._suspect_excluded = PickPipeline._drop_suspect(
+            self._detections, self._refine_results, cfg)
+        if self._suspect_excluded:
+            self._log(f"의심 마스크 {len(self._suspect_excluded)}건 제외: "
+                      + ", ".join(f"obj{i}({why})" for i, why, _c in self._suspect_excluded))
+            self.refine_status.setText(self.refine_status.text()
+                                       + f" | 의심 마스크 {len(self._suspect_excluded)}건 제외 (남은 검출 {len(self._detections)}건)")
+        elif not self._refine_results:
+            self.refine_status.setText(self.refine_status.text() + " | 의심 마스크 제외는 형상 보정이 켜져 성공해야 동작")
 
     def _maybe_refine(self, detections: list[Detection]) -> tuple[list[Detection], list[RefineResult]]:
         """보정이 켜져 있으면 (보정된 검출, 보정 결과)를, 아니면 (입력 그대로, [])를 반환한다.
@@ -809,7 +844,7 @@ class ICPDetectionTestTab(QWidget):
 
     def _run_icp(self) -> None:
         if not self._detections:
-            QMessageBox.warning(self, "알림", "먼저 2D 검출을 실행하세요.")
+            QMessageBox.warning(self, "알림", self._no_detection_message())
             return
         if self._pcd is None or self._valid is None:
             QMessageBox.warning(self, "알림", "이 프레임에 점군/유효마스크가 없습니다.")
@@ -863,7 +898,7 @@ class ICPDetectionTestTab(QWidget):
         pts = f"점 {r.num_points_scene}→{r.num_points_after_outlier}"
         if r.ok:
             self._log(f"  obj{i} ✓ fitness={r.fitness:.3f} rmse={r.rmse_m * 1000:.2f}mm ({pts}) "
-                      f"pick={tuple(round(v, 1) for v in r.pick_point_mm)} mm"
+                      f"pick{self._frame_tag()}={tuple(round(v, 1) for v in self._out_xyz(r.pick_point_mm))} mm"
                       + (" [뒤집힘 보정]" if r.was_flipped else ""))
             return
         self._log(f"  obj{i} ✗ {r.error} ({pts})")
@@ -939,8 +974,9 @@ class ICPDetectionTestTab(QWidget):
                     continue
                 uv = project_points(pts, intr)
                 e = r.pose["euler_deg"]
+                ox = self._out_xyz(origin)
                 label = (f"obj{r.instance_id}\n"
-                         f"X{origin[0]:+.1f} Y{origin[1]:+.1f} Z{origin[2]:+.1f} mm\n"
+                         f"X{ox[0]:+.1f} Y{ox[1]:+.1f} Z{ox[2]:+.1f} mm{self._frame_tag()}\n"
                          f"R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} Y{e['yaw_deg']:+.1f} deg")
                 overlays.append({"origin": tuple(uv[0]), "axes": [tuple(q) for q in uv[1:]], "label": label})
         except Exception as exc:  # noqa: BLE001
@@ -951,6 +987,18 @@ class ICPDetectionTestTab(QWidget):
     def _extra_pick_overlays(self) -> list[dict]:
         """하위 탭(4-1)이 ICP 표시에 더 얹을 오버레이를 돌려준다."""
         return []
+
+    def _no_detection_message(self) -> str:
+        if self._suspect_excluded:
+            return f"검출 {len(self._suspect_excluded)}건이 모두 의심 마스크로 제외됐습니다 ('의심 마스크 제외'를 끄거나 12. 설정의 기준값을 조정하세요)."
+        return "먼저 2D 검출을 실행하세요."
+
+    def _out_xyz(self, xyz) -> tuple[float, float, float]:
+        """표시/로그에 쓸 픽 포인트 좌표. 기본은 카메라 좌표 그대로 (4-1이 '로봇 좌표로 변환'을 켜면 바꿔 돌려준다)."""
+        return (float(xyz[0]), float(xyz[1]), float(xyz[2]))
+
+    def _frame_tag(self) -> str:
+        return ""   # 좌표계 표시 문구 (예: " (로봇 좌표)")
 
     def _clear_result_panel(self) -> None:
         self.image_viewer.set_pick_overlays(None)
@@ -1006,11 +1054,11 @@ class ICPDetectionTestTab(QWidget):
 
             if r.ok:
                 pose = r.pose["euler_deg"]
-                pos = r.pick_point_mm
+                pos = self._out_xyz(r.pick_point_mm)
                 status = QLabel(f"fitness {r.fitness:.3f}  rmse {r.rmse_m * 1000:.2f}mm")
                 status.setStyleSheet("color: #2a8a2a;")
                 layout.addWidget(status)
-                layout.addWidget(QLabel(f"pick X{pos[0]:+.1f} Y{pos[1]:+.1f} Z{pos[2]:+.1f} mm"))
+                layout.addWidget(QLabel(f"pick{self._frame_tag()} X{pos[0]:+.1f} Y{pos[1]:+.1f} Z{pos[2]:+.1f} mm"))
                 layout.addWidget(QLabel(
                     f"R{pose['roll_deg']:+.1f} P{pose['pitch_deg']:+.1f} Y{pose['yaw_deg']:+.1f} deg"))
                 if r.was_flipped:
@@ -1025,6 +1073,25 @@ class ICPDetectionTestTab(QWidget):
                 if r.fitness is not None:
                     layout.addWidget(QLabel(f"fitness {r.fitness:.3f}"))
 
+            self.result_layout.insertWidget(self.result_layout.count() - 1, card)
+        self._add_suspect_cards()
+
+    def _add_suspect_cards(self) -> None:
+        """의심 마스크로 제외된 검출을 결과 패널 끝에 표시한다 (5번/5-2 탭의 같은 카드와 동일한 문구)."""
+        for orig_idx, why, conf in self._suspect_excluded:
+            card = QFrame()
+            card.setObjectName("resultCard")
+            card.setFrameShape(QFrame.Shape.StyledPanel)
+            card.setStyleSheet("QFrame#resultCard { border: 1px solid #e3cfa0; border-radius: 6px; }")
+            lay = QVBoxLayout(card)
+            lay.setContentsMargins(8, 6, 8, 6)
+            title = QLabel(f"obj{orig_idx}  (conf {conf:.2f})  의심 마스크로 제외")
+            title.setStyleSheet("font-weight: 600;")
+            lay.addWidget(title)
+            reason = QLabel(why)
+            reason.setStyleSheet("color: #a0702a;")
+            reason.setWordWrap(True)
+            lay.addWidget(reason)
             self.result_layout.insertWidget(self.result_layout.count() - 1, card)
 
     # =================================================================

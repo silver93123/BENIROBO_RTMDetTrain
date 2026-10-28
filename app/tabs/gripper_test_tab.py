@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import functools
+import math
 import traceback
 from datetime import datetime
 
@@ -23,7 +24,7 @@ import cv2
 import numpy as np
 from PyQt6.QtGui import QColor, QImage, QPixmap
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QHeaderView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QAbstractItemView, QApplication, QCheckBox, QHeaderView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget,
 )
 
@@ -77,6 +78,11 @@ class GripperTestTab(QWidget):
         self._store.changed.connect(self._refresh_config_summary)
         self.image_viewer.point_clicked.connect(self._on_image_clicked)
         self.image_viewer.roi_changed.connect(self._on_plane_roi)
+        self.image_viewer.zoom_changed.connect(self._on_zoom_changed)
+        self.image_viewer.pixel_hovered.connect(self._on_pixel_hovered)
+        self.btn_zoom_in.clicked.connect(lambda _=False: self.image_viewer.zoom_by(1.5))
+        self.btn_zoom_out.clicked.connect(lambda _=False: self.image_viewer.zoom_by(1 / 1.5))
+        self.btn_zoom_fit.clicked.connect(lambda _=False: self.image_viewer.reset_view())
         self._refresh_config_summary()
         self._update_buttons()
 
@@ -118,12 +124,32 @@ class GripperTestTab(QWidget):
 
         # 왼쪽: 촬영 이미지 (클릭으로 위치 선택) - 5번 탭과 같은 최소 크기
         left = QVBoxLayout()
-        left.addWidget(QLabel("촬영 이미지 - 좌표를 알고 싶은 위치를 클릭하세요"))
+        zrow = QHBoxLayout()
+        zrow.addWidget(QLabel("촬영 이미지 (클릭 = 점 선택)"))
+        zrow.addStretch(1)
+        self.zoom_label = QLabel("")
+        self.zoom_label.setStyleSheet("color: #555;")
+        self.zoom_label.setFixedWidth(64)      # 글자 길이가 바뀌어도 왼쪽 열 폭(=이미지 크기)이 흔들리지 않게
+        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        zrow.addWidget(self.zoom_label)
+        self.btn_zoom_out = QPushButton("－")
+        self.btn_zoom_in = QPushButton("＋")
+        self.btn_zoom_fit = QPushButton("맞춤")
+        for b, tip in ((self.btn_zoom_out, "축소"), (self.btn_zoom_in, "확대"), (self.btn_zoom_fit, "화면에 맞춤")):
+            b.setFixedWidth(46)
+            b.setToolTip(tip)
+            zrow.addWidget(b)
+        left.addLayout(zrow)
         self.image_viewer = ImageViewer()
+        self.image_viewer.set_zoom_enabled(True)
         self.image_viewer.setMinimumSize(480, 360)
         self.image_viewer.setText("[촬영]을 눌러 이미지를 가져오세요")
         self.image_viewer.set_click_pick(True)
         left.addWidget(self.image_viewer, stretch=1)
+        self.hover_label = QLabel("마우스 휠: 확대/축소 (커서 위치 기준)  ·  가운데/오른쪽 버튼 드래그: 이동  ·  왼쪽 클릭: 점 선택")
+        self.hover_label.setStyleSheet("color: #555; font-size: 11px; font-family: Consolas, monospace;")
+        self.hover_label.setWordWrap(True)
+        left.addWidget(self.hover_label)
         self.frame_label = QLabel("아직 촬영하지 않았습니다.")
         self.frame_label.setWordWrap(True)
         left.addWidget(self.frame_label)
@@ -134,8 +160,16 @@ class GripperTestTab(QWidget):
         page_coord = QWidget()
         pc = QVBoxLayout(page_coord)
         pc.setContentsMargins(0, 6, 0, 0)
-        box = QGroupBox("클릭한 위치의 점군 좌표 (카메라 좌표계, mm)")
+        self.coord_box = QGroupBox("클릭한 위치의 점군 좌표 (카메라 좌표계, mm)")
+        box = self.coord_box
         bl = QVBoxLayout(box)
+        self.chk_robot_click = QCheckBox("로봇 좌표로 변환")
+        self.chk_robot_click.setToolTip(
+            "켜면 클릭한 점을 '좌표 변환' 탭에서 계산한 변환식으로 로봇 좌표로 바꿔 표시하고, 로봇 PICK 응답도 로봇 좌표로 보냅니다\n"
+            "('좌표 변환' 탭의 PICK 응답 좌표계와 같은 설정). 샘플 점을 찍어 로봇을 그 좌표로 보내 변환이 맞는지 확인하는 용도입니다.\n"
+            "변환을 아직 계산하지 않았거나 잔차 RMS가 한계를 넘으면 켤 수 없습니다. 앱을 다시 켜면 꺼진 상태로 시작합니다.")
+        self.chk_robot_click.toggled.connect(self._on_robot_click_toggled)
+        bl.addWidget(self.chk_robot_click)
         self.coord_label = QLabel("-")
         self.coord_label.setStyleSheet("font-family: Consolas, monospace; font-size: 18px; font-weight: 600;")
         self.coord_label.setWordWrap(True)
@@ -241,8 +275,24 @@ class GripperTestTab(QWidget):
     def _on_image_clicked(self, x: float, y: float) -> None:
         if self._frame is None:
             return
-        self._last_click = (x, y)
-        self._apply_click(x, y)
+        u, v = math.floor(x), math.floor(y)      # 커서가 가리키는 픽셀 (반올림하면 최대 반 픽셀 어긋난다)
+        self._last_click = (u, v)
+        self._apply_click(u, v)
+
+    def _on_zoom_changed(self, scale: float) -> None:
+        self.zoom_label.setText(f"{scale * 100:.0f}%")
+        self.zoom_label.setToolTip(f"화면 배율 {scale * 100:.0f}% (이미지 픽셀 1개 = 화면 {scale:.2f}px)")
+
+    def _on_pixel_hovered(self, u: int, v: int) -> None:
+        """마우스가 가리키는 픽셀의 점군 값을 보여준다 - 깊이가 비었거나 가장자리인 곳을 피해 고를 수 있게."""
+        if u < 0 or self._frame is None:
+            return
+        pt = point_from_cloud(self._frame.points_organized, getattr(self._frame, "valid_mask", None), u, v, 1)
+        if pt is None:
+            self.hover_label.setText(f"커서 ({u}, {v})  깊이 없음 (이 픽셀은 점군이 비어 있음)")
+        else:
+            X, Y, Z = pt.xyz_mm
+            self.hover_label.setText(f"커서 ({u}, {v})  X{X:+8.2f}  Y{Y:+8.2f}  Z{Z:+8.2f} mm  (이 픽셀 한 점)")
 
     def _recompute_last_click(self) -> None:
         click = getattr(self, "_last_click", None)
@@ -265,17 +315,56 @@ class GripperTestTab(QWidget):
         pt.stamp = datetime.now().strftime("%H:%M:%S")
         self._point_store.set(pt)
         X, Y, Z = pt.xyz_mm
-        self.coord_label.setText(f"X {X:+9.2f}\nY {Y:+9.2f}\nZ {Z:+9.2f}")
-        self.coord_label.setStyleSheet("font-family: Consolas, monospace; font-size: 18px; font-weight: 600;")
         self.detail_label.setText(
             f"픽셀 (u={pt.u}, v={pt.v})  |  창 {pt.window}x{pt.window}에서 유효 점 {pt.n_points}개의 중앙값  |  "
             f"창 안 Z 표준편차 {pt.spread_mm:.2f} mm" + ("  (값이 크면 경계/기울어진 면 - 위치를 확인)" if pt.spread_mm > 3.0 else ""))
         self._refresh_sent_label(pt)
-        origin = (float(pt.u), float(pt.v))
+        self._show_point(pt)
+        rx, ry, rz = self._display_xyz(pt)[0]
+        robot = self._display_xyz(pt)[1]
+        self._log(f"클릭 ({pt.u}, {pt.v}) -> 카메라 X{X:+.2f} Y{Y:+.2f} Z{Z:+.2f} mm"
+                  + (f" -> 로봇 X{rx:+.2f} Y{ry:+.2f} Z{rz:+.2f} mm" if robot else "") + f" (유효 점 {pt.n_points}개)")
+
+    def _display_xyz(self, pt: ClickedPoint) -> tuple[tuple[float, float, float], bool]:
+        """(표시할 좌표, 로봇 좌표인가). 로봇 변환이 켜져 있고 쓸 수 있을 때만 변환한다."""
+        if self._output.snapshot()[0] == "robot":
+            _f, R, t, rms, limit = self._output.snapshot()
+            if R is not None and t is not None and not (rms is not None and rms > limit):
+                v = R @ np.asarray(pt.xyz_mm, dtype=float) + t
+                return (float(v[0]), float(v[1]), float(v[2])), True
+        return pt.xyz_mm, False
+
+    def _show_point(self, pt: ClickedPoint) -> None:
+        """좌표 큰 글씨 / 이미지 라벨을 현재 좌표계(카메라|로봇)로 그린다."""
+        (X, Y, Z), robot = self._display_xyz(pt)
+        self.coord_box.setTitle("클릭한 위치의 좌표 (로봇 좌표계, mm - 변환 적용)" if robot
+                                else "클릭한 위치의 점군 좌표 (카메라 좌표계, mm)")
+        color = "color: #1a6fb0;" if robot else ""
+        self.coord_label.setText(f"X {X:+9.2f}\nY {Y:+9.2f}\nZ {Z:+9.2f}")
+        self.coord_label.setStyleSheet(f"font-family: Consolas, monospace; font-size: 18px; font-weight: 600; {color}")
+        tag = "[로봇] " if robot else ""
         self.image_viewer.set_pick_overlays([{
-            "origin": origin, "axes": [], "dot": QColor(255, 60, 60),
-            "label": f"X{X:+.1f} Y{Y:+.1f} Z{Z:+.1f}", "label_above": True}])
-        self._log(f"클릭 ({pt.u}, {pt.v}) -> X{X:+.2f} Y{Y:+.2f} Z{Z:+.2f} mm (유효 점 {pt.n_points}개)")
+            "origin": (pt.u + 0.5, pt.v + 0.5), "axes": [], "dot": QColor(255, 60, 60),
+            "label": f"{tag}X{X:+.1f} Y{Y:+.1f} Z{Z:+.1f}", "label_above": True}])
+
+    @_guarded
+    def _on_robot_click_toggled(self, on: bool) -> None:
+        if on:
+            fit, limit = self._fit, self.spin_limit.value()
+            if fit is None:
+                why = "아직 좌표 변환을 계산하지 않았습니다. '좌표 변환' 탭에서 점 짝을 모아 [변환 계산]을 먼저 하세요."
+            elif fit.rms_mm > limit:
+                why = f"변환 잔차 RMS {fit.rms_mm:.2f} mm 가 한계 {limit:.2f} mm 를 넘습니다. 점 짝을 보강하거나 한계를 조정하세요."
+            else:
+                why = ""
+            if why:
+                QMessageBox.warning(self, "로봇 좌표로 변환할 수 없음", why)
+                self.chk_robot_click.blockSignals(True)
+                self.chk_robot_click.setChecked(False)
+                self.chk_robot_click.blockSignals(False)
+                return
+        self.cmb_frame.setCurrentIndex(1 if on else 0)   # 응답 좌표계와 한 설정 (-> _apply_output_config)
+        self._log("클릭 좌표 표시/응답 좌표계: " + ("로봇 (변환 적용)" if on else "카메라"))
 
     def _refresh_sent_label(self, pt: ClickedPoint | None) -> None:
         """로봇이 지금 PICK을 보내면 받을 응답 문자열을 그대로 보여준다 (좌표 변환 설정 반영)."""
@@ -486,7 +575,15 @@ class GripperTestTab(QWidget):
         fit = self._fit
         self._output.set(frame, None if fit is None else fit.R, None if fit is None else fit.t,
                          None if fit is None else fit.rms_mm, self.spin_limit.value())
-        self._refresh_sent_label(self._point_store.get())
+        robot = frame == "robot"
+        if self.chk_robot_click.isChecked() != robot:    # 콤보에서 바꿔도 체크박스가 따라가게
+            self.chk_robot_click.blockSignals(True)
+            self.chk_robot_click.setChecked(robot)
+            self.chk_robot_click.blockSignals(False)
+        pt = self._point_store.get()
+        self._refresh_sent_label(pt)
+        if pt is not None:
+            self._show_point(pt)
 
     @_guarded
     def _on_calib_save(self) -> None:

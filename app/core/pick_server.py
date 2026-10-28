@@ -14,8 +14,10 @@
            NG,<코드>                                  실패
            PONG                                       PING 응답
     NG 코드: NO_DETECTION, NO_VALID_POSE, CAMERA_ERROR, CONFIG_ERROR, DETECTION_ERROR,
-             REFINE_ERROR (2D 기반 전용), INTERNAL_ERROR, BUSY (이전 요청 처리 중), UNKNOWN_CMD, TIMEOUT
-    단위: 카메라 좌표계 mm / deg (핸드-아이 변환은 로봇 쪽에서)
+             REFINE_ERROR (2D 기반 전용), NO_CALIB / CALIB_BAD (로봇 좌표 변환 켠 경우), INTERNAL_ERROR, BUSY (이전 요청 처리 중), UNKNOWN_CMD, TIMEOUT
+    단위: mm / deg. 기본은 카메라 좌표계. 5-2 탭의 '로봇 좌표로 변환'을 켜면 13번 탭에서 저장한 변환으로
+          X,Y,Z를 로봇 좌표로 바꿔 응답한다 (회전 roll/pitch/yaw는 변환하지 않고 카메라 기준 그대로).
+          변환이 없으면 NG,NO_CALIB / 잔차가 한계를 넘으면 NG,CALIB_BAD.
 
 요청 끝 문자는 \\n, \\r\\n, \\r 모두 받는다. 끝 문자 없이 "PICK"만 보내는 클라이언트도
 알려진 명령과 정확히 일치하면 바로 처리한다.
@@ -26,6 +28,7 @@
 """
 from __future__ import annotations
 
+import dataclasses
 import os
 import queue
 import re
@@ -37,6 +40,7 @@ from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Callable
 
+import numpy as np
 import yaml
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -125,14 +129,43 @@ def _default_camera_factory(cfg: dict):
     return create_camera(cfg)
 
 
+def apply_output_frame(result: PickRunResult, output) -> PickRunResult:
+    """output(OutputConfig)이 robot이면 성공 결과의 후보 xyz를 로봇 좌표로 바꾼다 (제자리 수정 후 반환).
+
+    변환이 없거나(NO_CALIB) 잔차가 한계를 넘으면(CALIB_BAD) 결과를 실패로 바꾼다. 이때 candidates는
+    카메라 좌표 그대로 남겨 화면에서 무엇이 검출됐는지는 볼 수 있게 한다 (응답에는 실리지 않는다).
+    """
+    if output is None or not result.ok:
+        return result
+    frame, R, t, rms, limit = output.snapshot()
+    if frame != "robot":
+        return result
+    if R is None or t is None:
+        result.ok, result.error_code = False, "NO_CALIB"
+        result.error_message = "저장된 좌표 변환이 없습니다 (13번 탭에서 변환 계산 후 저장)"
+        return result
+    if rms is not None and rms > limit:
+        result.ok, result.error_code = False, "CALIB_BAD"
+        result.error_message = f"변환 잔차 RMS {rms:.2f} mm 가 한계 {limit:.2f} mm 를 넘습니다"
+        return result
+    new = []
+    for c in result.candidates:
+        v = R @ np.asarray(c.xyz_mm, dtype=float) + t
+        new.append(dataclasses.replace(c, xyz_mm=(float(v[0]), float(v[1]), float(v[2]))))
+    result.candidates = new
+    result.coord_frame = "robot"
+    return result
+
+
 class PickWorker:
     """카메라와 PickPipeline을 한 스레드에서 독점하고, 작업을 순서대로 처리한다."""
 
     def __init__(self, store: SettingsStore,
                  camera_factory: Callable[[dict], object] | None = None,
-                 log: Callable[[str], None] | None = None, mode: str = "icp"):
+                 log: Callable[[str], None] | None = None, mode: str = "icp", output=None):
         self._store = store
         self.mode = mode
+        self.output = output    # OutputConfig | None - 응답 좌표계 (None이면 항상 카메라 좌표)
         self._factory = camera_factory or _default_camera_factory
         self._log = log or (lambda _m: None)
         self._jobs: "queue.Queue[tuple | None]" = queue.Queue()
@@ -231,7 +264,7 @@ class PickWorker:
             if not keep:
                 self._close_camera()
         result.timings_ms["capture"] = capture_ms
-        return result
+        return apply_output_frame(result, self.output)
 
     def _capture(self, cam_settings: CameraSettings):
         key = (cam_settings.camera_type, cam_settings.num_frames, cam_settings.min_valid_ratio)

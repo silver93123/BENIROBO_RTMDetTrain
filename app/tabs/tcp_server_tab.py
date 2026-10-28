@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
 from app.core.app_settings import SettingsStore, get_settings
 from app.core.pick_pipeline import PickRunResult
 from app.core.pick_server import PickServer, PickWorker
-from app.widgets.image_viewer import ImageViewer, make_label_opacity_bar
+from app.widgets.image_viewer import ImageViewer, make_label_opacity_bar, make_zoom_bar
 
 
 def _guarded(func):
@@ -110,8 +110,12 @@ class TcpServerTab(QWidget):
 
         # 왼쪽: 마지막 프레임 + 검출 오버레이
         left = QVBoxLayout()
-        left.addWidget(QLabel("마지막 요청의 이미지와 검출 (형상 보정까지 반영된 마스크)"))
         self.image_viewer = ImageViewer()
+        head = QHBoxLayout()
+        head.addWidget(QLabel("마지막 요청의 이미지와 검출 (형상 보정까지 반영된 마스크)"))
+        head.addStretch(1)
+        head.addWidget(make_zoom_bar(self.image_viewer))   # 휠 확대/축소, 가운데/오른쪽 드래그 이동
+        left.addLayout(head)
         self.image_viewer.setMinimumSize(480, 360)
         left.addWidget(self.image_viewer, stretch=1)
         self.opacity_bar = make_label_opacity_bar(self.image_viewer)   # 라벨이 마스크를 가릴 때 투명도 조절

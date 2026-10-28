@@ -90,6 +90,7 @@ class PickRunResult:
     intrinsics: tuple | None = None
     cad_extent_mm: float = 60.0
     timings_ms: dict[str, float] = field(default_factory=dict)
+    coord_frame: str = "camera"     # candidates의 xyz_mm 좌표계: "camera" | "robot" (좌표 변환 적용 여부)
 
     def summary(self) -> str:
         n_det = len(self.detections)

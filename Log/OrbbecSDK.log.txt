@@ -61623,3 +61623,1581 @@
 [10/28 18:55:42.117378][info][858531][ObLibuvcDevicePort.cpp:87] uvc_close done.
 [10/28 18:55:42.117380][info][858531][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
 [10/28 18:55:42.215277][warning][916430][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1 logs in 868ms, last: 18:55:41.380625**]
+[10/28 21:57:27.811774][info][943994][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 21:57:27.811805][info][943994][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 21:57:27.811808][info][943994][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 21:57:27.811811][info][943994][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 21:57:28.816859][info][943994][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 21:57:28.816876][info][943994][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 21:57:29.160027][info][943994][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 21:57:29.160059][info][943994][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x6107CF9EF650
+[10/28 21:57:29.160692][info][943994][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 21:57:29.171057][info][944338][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 21:57:29.626414][info][943994][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 21:57:29.626423][info][943994][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 21:57:29.626427][info][943994][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 21:57:29.626431][info][943994][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 21:57:29.626433][info][943994][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 21:57:29.778657][info][943994][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 21:57:29.778661][info][943994][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 21:57:29.778662][info][943994][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 21:57:29.778664][info][943994][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 21:57:29.778665][info][943994][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 21:57:29.778668][info][943994][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 21:57:29.779782][info][943994][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 21:57:29.779783][info][943994][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 21:57:29.988984][info][944349][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 21:57:30.179215][info][944344][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 21:57:30.179401][info][944344][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 21:57:30.675884][warning][944359][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 21:57:30.708710][info][943994][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 21:57:30.708715][info][943994][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 21:57:30.708724][info][943994][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 21:57:31.072006][info][943994][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 21:57:31.072099][info][943994][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 21:57:31.072106][info][943994][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 21:57:31.072109][info][943994][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 21:57:31.072149][info][943994][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 21:57:31.072151][info][943994][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 21:57:31.727604][info][943994][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 21:57:31.727682][info][943994][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 21:57:31.727684][info][943994][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 21:57:31.727704][info][943994][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 21:57:31.727732][info][943994][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x6107CF9EF650
+[10/28 21:57:31.727793][info][943994][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 21:57:31.729267][info][943994][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 21:57:31.729273][info][943994][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 21:57:31.729293][info][943994][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 21:57:31.729300][info][943994][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 21:57:31.752044][info][943994][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 21:57:31.752045][info][943994][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 21:57:31.825839][warning][944366][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**4 logs in 1149ms, last: 21:57:31.067153**]
+[10/28 22:04:54.131801][info][948761][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:04:54.131821][info][948761][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:04:54.131823][info][948761][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:04:54.131825][info][948761][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:04:55.136048][info][948761][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:04:55.136062][info][948761][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:04:55.479875][info][948761][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:04:55.479891][info][948761][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x5696BB1CE5B0
+[10/28 22:04:55.480404][info][948761][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:04:55.491016][info][949051][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:04:55.946351][info][948761][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:04:55.946359][info][948761][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:04:55.946364][info][948761][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:04:55.946368][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:04:55.946369][info][948761][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:04:56.101832][info][948761][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:04:56.101845][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:04:56.101848][info][948761][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:04:56.101852][info][948761][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:04:56.101853][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:04:56.101857][info][948761][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:04:56.102931][info][948761][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:04:56.102933][info][948761][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:04:56.312435][info][949061][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:04:56.502721][info][949057][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:04:56.502883][info][949057][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:04:56.976616][info][948761][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:04:56.976621][info][948761][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:04:56.976633][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 22:04:57.257441][warning][949070][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:04:57.362991][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 22:04:57.363085][info][948761][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:04:57.363093][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 22:04:57.363096][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:04:57.363142][info][948761][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:04:57.363144][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 22:04:58.056481][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:04:58.056584][info][948761][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:04:58.056586][info][948761][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:04:58.056605][info][948761][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:04:58.056633][info][948761][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x5696BB1CE5B0
+[10/28 22:04:58.056690][info][948761][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:04:58.058021][info][948761][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:04:58.058023][info][948761][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:04:58.058029][info][948761][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:04:58.058032][info][948761][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:04:58.080297][info][948761][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:04:58.080298][info][948761][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:04:58.144006][warning][949081][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**3 logs in 886ms, last: 22:04:57.357145**]
+[10/28 22:16:09.667990][info][954490][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:16:09.668024][info][954490][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:16:09.668027][info][954490][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:16:09.668030][info][954490][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:16:10.673823][info][954490][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:16:10.673840][info][954490][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:16:11.018178][info][954490][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:16:11.018201][info][954490][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x7EB0EE1106F0
+[10/28 22:16:11.019083][info][954490][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:16:11.029825][info][954587][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:16:11.485095][info][954490][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:16:11.485105][info][954490][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:16:11.485109][info][954490][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:16:11.485113][info][954490][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:16:11.485115][info][954490][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:16:11.573800][info][954490][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:16:11.573803][info][954490][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:16:11.573804][info][954490][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:16:11.573807][info][954490][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:16:11.573808][info][954490][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:16:11.573811][info][954490][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:16:11.574754][info][954490][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:16:11.574755][info][954490][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:16:11.821609][info][954601][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:16:11.882556][info][954594][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:16:11.883065][info][954594][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:16:12.502962][warning][954604][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:16:15.523685][warning][954608][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**91 logs in 3020ms**]
+[10/28 22:16:16.833910][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.321165fps
+[10/28 22:16:16.854526][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.387846fps
+[10/28 22:16:16.885689][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.581652fps
+[10/28 22:16:16.885731][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.581652fps
+[10/28 22:16:16.885753][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.587767fps
+[10/28 22:16:16.885793][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.587767fps
+[10/28 22:16:21.537598][warning][954608][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**181 logs in 6013ms**]
+[10/28 22:16:21.844400][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.139719fps
+[10/28 22:16:21.864842][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.133705fps
+[10/28 22:16:21.899972][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:16:21.900019][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:16:21.900020][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:16:21.900067][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:16:26.857709][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:16:26.878485][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:16:26.917240][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:16:26.917279][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:16:26.917300][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:16:26.917316][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:16:31.873111][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:16:31.893729][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:16:31.933792][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:16:31.933834][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:16:31.933851][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:16:31.933876][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:16:33.560722][warning][954608][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**362 logs in 12023ms**]
+[10/28 22:16:36.894853][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.067703fps
+[10/28 22:16:36.915305][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.067703fps
+[10/28 22:16:36.947515][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:16:36.947537][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:16:36.947575][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:16:36.947613][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:16:41.902455][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.157780fps
+[10/28 22:16:41.923181][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.151758fps
+[10/28 22:16:41.965607][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.091669fps
+[10/28 22:16:41.965650][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.091669fps
+[10/28 22:16:41.965666][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.091669fps
+[10/28 22:16:41.965686][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.091669fps
+[10/28 22:16:46.916633][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:16:46.937273][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:16:46.976443][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.133705fps
+[10/28 22:16:46.976480][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.133705fps
+[10/28 22:16:46.976498][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.133705fps
+[10/28 22:16:46.976542][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.133705fps
+[10/28 22:16:51.930096][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:16:51.950654][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:16:51.990035][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:16:51.990073][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:16:51.990089][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:16:51.990113][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:16:56.944681][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:16:56.965369][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:16:57.007181][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:16:57.007204][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:16:57.007232][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:16:57.007269][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:16:57.568950][warning][954608][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**723 logs in 24008ms**]
+[10/28 22:17:01.959061][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:17:01.979778][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:17:02.019575][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.127693fps
+[10/28 22:17:02.019616][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:17:02.019625][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:17:02.019672][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:17:06.972659][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:17:06.993145][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:17:07.033587][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:17:07.033634][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:17:07.033648][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:17:07.033686][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:17:11.988231][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:17:12.008537][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:17:12.050134][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:17:12.050173][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:17:12.050177][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:17:12.050211][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:17:17.007630][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.085674fps
+[10/28 22:17:17.028243][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.079681fps
+[10/28 22:17:17.063006][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:17:17.063048][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:17:17.063067][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:17:17.063113][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:17:22.018241][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.133705fps
+[10/28 22:17:22.038365][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.139719fps
+[10/28 22:17:22.078555][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:17:22.078596][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:17:22.078616][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:17:22.078656][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:17:27.035754][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.097666fps
+[10/28 22:17:27.056623][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.091669fps
+[10/28 22:17:27.094895][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:17:27.094934][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:17:27.094953][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:17:27.094977][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:17:32.046292][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.133705fps
+[10/28 22:17:32.066859][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.133705fps
+[10/28 22:17:32.107562][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.127693fps
+[10/28 22:17:32.107598][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:17:32.107601][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:17:32.107622][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:17:37.060018][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:17:37.080691][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:17:37.123795][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:17:37.123833][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:17:37.123838][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:17:37.123869][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:17:42.075358][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:17:42.096003][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:17:42.136940][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:17:42.136963][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:17:42.136983][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:17:42.137023][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:17:45.588361][warning][954608][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1446 logs in 48019ms**]
+[10/28 22:17:47.093834][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.085674fps
+[10/28 22:17:47.114274][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.091669fps
+[10/28 22:17:47.148946][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.127693fps
+[10/28 22:17:47.148981][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:17:47.148985][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:17:47.149026][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:17:52.103943][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.139719fps
+[10/28 22:17:52.124479][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.139719fps
+[10/28 22:17:52.164002][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:17:52.164039][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:17:52.164062][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:17:52.164097][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:17:57.125751][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.073690fps
+[10/28 22:17:57.146539][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.067703fps
+[10/28 22:17:57.181457][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:17:57.181500][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:17:57.181514][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:17:57.181544][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:18:02.144063][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.085674fps
+[10/28 22:18:02.164620][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.091669fps
+[10/28 22:18:02.193716][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.127693fps
+[10/28 22:18:02.193756][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:18:02.193775][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:18:02.193818][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:18:07.146485][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.187925fps
+[10/28 22:18:07.166945][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.181892fps
+[10/28 22:18:07.210651][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:18:07.210690][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:18:07.210703][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:18:07.210746][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:18:12.160691][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:18:12.181127][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:18:12.223324][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:18:12.223363][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:18:12.223384][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:18:12.223423][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:18:17.175400][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:18:17.196003][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:18:17.236211][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:18:17.236248][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:18:17.236256][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:18:17.236272][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:18:22.189326][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:18:22.210000][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:18:22.249585][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:18:22.249624][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:18:22.249643][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:18:22.249662][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:18:27.204192][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:18:27.224450][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:18:27.267261][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.091669fps
+[10/28 22:18:27.267303][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.091669fps
+[10/28 22:18:27.267316][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.091669fps
+[10/28 22:18:27.267351][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.091669fps
+[10/28 22:18:32.218757][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:18:32.239422][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:18:32.280642][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:18:32.280681][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:18:32.280696][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:18:32.280725][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:18:37.232749][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:18:37.253455][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:18:37.293910][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:18:37.293946][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:18:37.293970][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:18:37.293988][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:18:42.246549][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:18:42.266787][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:18:42.309666][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:18:42.309705][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:18:42.309726][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:18:42.309745][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:18:45.596782][warning][954608][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1807 logs in 60008ms**]
+[10/28 22:18:47.261203][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:18:47.281878][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:18:47.322962][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:18:47.322978][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:18:47.323005][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:18:47.323017][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:18:52.274797][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:18:52.295313][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:18:52.334834][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.127693fps
+[10/28 22:18:52.334867][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:18:52.334890][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:18:52.334937][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:18:57.289894][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:18:57.310553][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:18:57.352792][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:18:57.352835][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.091669fps
+[10/28 22:18:57.352841][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.091669fps
+[10/28 22:18:57.352881][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.091669fps
+[10/28 22:19:02.304284][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:19:02.324747][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:19:02.365218][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:19:02.365254][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:19:02.365278][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:19:02.365315][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:19:07.318309][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:19:07.338793][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:19:07.378766][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:19:07.378809][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:19:07.378827][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:19:07.378846][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:19:12.331815][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:19:12.352479][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:19:12.394549][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:19:12.394587][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:19:12.394609][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:19:12.394648][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:19:17.345972][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:19:17.367645][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:19:17.406674][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.127693fps
+[10/28 22:19:17.406713][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:19:17.406735][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:19:17.406772][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:19:22.361142][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:19:22.381882][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:19:22.420254][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:19:22.420291][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:19:22.420312][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:19:22.420345][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:19:27.374906][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:19:27.395433][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:19:27.434203][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:19:27.434247][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:19:27.434260][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:19:27.434302][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:19:32.393845][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.085674fps
+[10/28 22:19:32.414520][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.085674fps
+[10/28 22:19:32.445820][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.127693fps
+[10/28 22:19:32.445858][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:19:32.445876][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:19:32.445899][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:19:37.404062][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.139719fps
+[10/28 22:19:37.424651][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.139719fps
+[10/28 22:19:37.459600][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:19:37.459640][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:19:37.459657][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:19:37.459676][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:19:42.417999][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:19:42.438753][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:19:42.477459][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.091669fps
+[10/28 22:19:42.477499][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.091669fps
+[10/28 22:19:42.477513][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.091669fps
+[10/28 22:19:42.477551][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.091669fps
+[10/28 22:19:45.604212][warning][954608][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1802 logs in 60007ms**]
+[10/28 22:19:47.432575][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:19:47.453090][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:19:47.491749][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:19:47.491788][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:19:47.491804][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:19:47.491823][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:19:52.446587][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:19:52.467206][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:19:52.508706][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:19:52.508746][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.103670fps
+[10/28 22:19:52.508751][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:19:52.508792][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:19:57.460862][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:19:57.481393][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:19:57.521044][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:19:57.521069][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:19:57.521099][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:19:57.521137][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:20:02.475535][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:20:02.496294][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:20:02.532272][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.133705fps
+[10/28 22:20:02.532317][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.133705fps
+[10/28 22:20:02.532331][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.133705fps
+[10/28 22:20:02.532365][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.133705fps
+[10/28 22:20:07.488589][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:20:07.509414][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:20:07.549306][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:20:07.549346][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:20:07.549364][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:20:07.549397][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:20:12.504768][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:20:12.525513][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:20:12.565834][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:20:12.565865][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:20:12.565878][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:20:12.565907][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:20:17.518755][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:20:17.539224][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:20:17.577765][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.133705fps
+[10/28 22:20:17.577811][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:20:17.577827][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:20:17.577872][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:20:22.530883][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:20:22.551357][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.127693fps
+[10/28 22:20:22.591560][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:20:22.591601][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:20:22.591620][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:20:22.591665][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:20:27.546229][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:20:27.566973][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:20:27.609028][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.091669fps
+[10/28 22:20:27.609068][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.091669fps
+[10/28 22:20:27.609074][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.091669fps
+[10/28 22:20:27.609103][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.091669fps
+[10/28 22:20:32.559970][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:20:32.580543][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:20:32.620205][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.133705fps
+[10/28 22:20:32.620253][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.133705fps
+[10/28 22:20:32.620256][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.133705fps
+[10/28 22:20:32.620283][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.133705fps
+[10/28 22:20:37.577425][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.097666fps
+[10/28 22:20:37.598149][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.091669fps
+[10/28 22:20:37.635556][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:20:37.635599][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:20:37.635601][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:20:37.635637][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:20:42.587654][info][954601][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.139719fps
+[10/28 22:20:42.608991][info][954604][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.133705fps
+[10/28 22:20:42.651700][info][954594][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:20:42.651747][info][954594][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.103670fps
+[10/28 22:20:42.651748][info][954607][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.103670fps
+[10/28 22:20:42.651783][info][954608][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:20:43.254864][info][948761][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x5696B98158A0
+[10/28 22:20:43.254962][info][948761][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:20:43.254968][info][948761][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:20:43.254973][info][948761][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:20:43.254978][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STARTING@Depth
+[10/28 22:20:43.254980][info][948761][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:20:43.254983][info][948761][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:20:43.254984][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STARTING@IR
+[10/28 22:20:43.254985][info][948761][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:20:43.254987][info][948761][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:20:43.254988][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STARTING@Color
+[10/28 22:20:43.254990][info][948761][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:20:43.255700][warning][948761][ObException.cpp:32] A unrecoverable_exception has occurred!
+ - where: ObLibuvcDevicePort.cpp(129)
+ - msg: uvc_stream_open_ctrl failed!
+ - type: IO
+ - status: 115
+[10/28 22:20:43.255855][warning][948761][VideoSensor.cpp:145] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: VideoSensor.cpp(145):start
+ - msg: uvc_stream_open_ctrl failed!
+ - type: N11libobsensor23unrecoverable_exceptionE
+ - status: 115
+[10/28 22:20:43.255859][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to START_FAILED@Color
+[10/28 22:20:43.255867][warning][948761][Pipeline.cpp:248] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: Pipeline.cpp(248):start
+ - msg: uvc_stream_open_ctrl failed!
+ - type: N11libobsensor23unrecoverable_exceptionE
+ - status: 115
+[10/28 22:20:43.255868][info][948761][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:20:43.255868][info][948761][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:20:43.255870][info][948761][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:20:43.255871][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STOPPING@IR
+[10/28 22:20:43.255873][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:20:43.255905][info][948761][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:20:43.255906][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STOPPING@Depth
+[10/28 22:20:43.804079][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:20:43.804135][info][948761][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:20:43.804137][info][948761][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:20:43.804148][info][948761][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:20:45.445468][info][948761][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x5696B98158A0
+[10/28 22:20:45.637659][warning][957171][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1736 logs in 60033ms, last: 22:20:43.249558**]
+[10/28 22:20:49.811315][info][954490][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:20:49.811327][info][954490][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:20:49.811345][info][954490][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:20:49.811348][info][954490][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:20:49.811350][info][954490][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:20:49.811351][info][954490][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:20:49.811362][info][954490][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:20:49.811398][info][954490][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x7EB0EE1106F0
+[10/28 22:20:49.811480][info][954490][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:20:49.815228][info][954490][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:20:49.815229][info][954490][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:20:49.815236][info][954490][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:20:49.815240][info][954490][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:20:49.900958][info][954490][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:20:49.900960][info][954490][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:20:53.835668][info][948761][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:20:53.835689][info][948761][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:20:53.835690][info][948761][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:20:53.835692][info][948761][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:20:54.841830][info][948761][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:20:54.841846][info][948761][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:20:55.185585][info][948761][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:20:55.185604][info][948761][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x5696C49B5580
+[10/28 22:20:55.186137][info][948761][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:20:55.197884][info][958025][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:20:56.016435][info][948761][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:20:56.016450][info][948761][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:20:56.016454][info][948761][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:20:56.016459][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:20:56.016461][info][948761][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:20:56.116807][info][948761][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:20:56.116811][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:20:56.116813][info][948761][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:20:56.116816][info][948761][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:20:56.116817][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:20:56.116820][info][948761][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:20:56.117763][info][948761][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:20:56.117765][info][948761][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:20:56.330516][info][958039][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=0.030214fps
+[10/28 22:20:56.330524][info][958039][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:20:56.361843][info][958045][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=0.030213fps
+[10/28 22:20:56.516600][info][958035][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=0.030208fps
+[10/28 22:20:56.516606][info][958035][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:20:56.516676][info][958048][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=0.030208fps
+[10/28 22:20:56.516770][info][958035][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:20:56.991439][info][948761][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:20:56.991445][info][948761][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:20:56.991458][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 22:20:57.272856][warning][958048][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:20:57.376854][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 22:20:57.376926][info][948761][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:20:57.376934][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 22:20:57.376937][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:20:57.376956][info][948761][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:20:57.376959][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 22:20:57.973811][info][948761][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:20:57.973916][info][948761][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:20:57.973918][info][948761][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:20:57.973938][info][948761][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:20:57.973966][info][948761][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x5696C49B5580
+[10/28 22:20:57.974025][info][948761][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:20:57.975279][info][948761][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:20:57.975280][info][948761][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:20:57.975289][info][948761][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:20:57.975293][info][948761][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:20:57.998722][info][948761][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:20:57.998723][info][948761][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:20:58.000582][warning][958076][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**3 logs in 727ms, last: 22:20:57.372326**]
+[10/28 22:31:54.692216][info][963931][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:31:54.692237][info][963931][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:31:54.692238][info][963931][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:31:54.692240][info][963931][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:31:55.695837][info][963931][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:31:55.695874][info][963931][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:31:56.040397][info][963931][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:31:56.040413][info][963931][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x716C9168DC20
+[10/28 22:31:56.040920][info][963931][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:31:56.051398][info][964088][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:31:56.507562][info][963931][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:31:56.507571][info][963931][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:31:56.507575][info][963931][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:31:56.507579][info][963931][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:31:56.507581][info][963931][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:31:56.619290][info][963931][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:31:56.619300][info][963931][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:31:56.619303][info][963931][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:31:56.619307][info][963931][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:31:56.619308][info][963931][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:31:56.619312][info][963931][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:31:56.620422][info][963931][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:31:56.620423][info][963931][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:31:56.829638][info][964098][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:31:57.024893][info][964093][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:31:57.025051][info][964093][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:31:57.518619][warning][964108][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:32:00.545087][warning][964108][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**91 logs in 3026ms**]
+[10/28 22:32:01.851934][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.260801fps
+[10/28 22:32:01.872632][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.327213fps
+[10/28 22:32:02.042088][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.496311fps
+[10/28 22:32:02.042135][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.496311fps
+[10/28 22:32:02.042151][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.496311fps
+[10/28 22:32:02.042170][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.496311fps
+[10/28 22:32:06.563522][warning][964108][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**181 logs in 6018ms**]
+[10/28 22:32:06.873691][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.073690fps
+[10/28 22:32:06.894256][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.067703fps
+[10/28 22:32:07.063124][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.073690fps
+[10/28 22:32:07.063179][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.073690fps
+[10/28 22:32:07.063181][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.073690fps
+[10/28 22:32:07.063224][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.073690fps
+[10/28 22:32:11.892531][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.085674fps
+[10/28 22:32:11.913087][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.085674fps
+[10/28 22:32:12.084383][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.073690fps
+[10/28 22:32:12.084433][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.073690fps
+[10/28 22:32:12.084445][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.073690fps
+[10/28 22:32:12.084496][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.073690fps
+[10/28 22:32:16.910358][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.091669fps
+[10/28 22:32:16.930951][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.091669fps
+[10/28 22:32:17.104112][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.079681fps
+[10/28 22:32:17.104156][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.079681fps
+[10/28 22:32:17.104159][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.079681fps
+[10/28 22:32:17.104201][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.079681fps
+[10/28 22:32:18.568204][warning][964108][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**361 logs in 12004ms**]
+[10/28 22:32:21.926688][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:32:21.947240][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:32:22.119253][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:32:22.119303][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:32:22.119307][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:32:22.119335][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:32:26.941822][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:32:26.962558][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:32:27.137870][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.085674fps
+[10/28 22:32:27.137918][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.085674fps
+[10/28 22:32:27.137933][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.085674fps
+[10/28 22:32:27.137958][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.085674fps
+[10/28 22:32:31.959574][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.097666fps
+[10/28 22:32:31.980329][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.091669fps
+[10/28 22:32:32.152427][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:32:32.152477][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:32:32.152487][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:32:32.152513][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:32:36.973028][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:32:36.993896][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:32:37.165495][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:32:37.165531][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:32:37.165547][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:32:37.165568][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:32:41.986817][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:32:42.007399][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:32:42.183076][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.091669fps
+[10/28 22:32:42.183123][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.091669fps
+[10/28 22:32:42.183135][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.091669fps
+[10/28 22:32:42.183158][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.091669fps
+[10/28 22:32:42.581386][warning][964108][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**723 logs in 24013ms**]
+[10/28 22:32:47.002005][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:32:47.022364][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:32:47.196100][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:32:47.196141][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:32:47.196163][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:32:47.196188][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:32:52.017467][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:32:52.037864][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:32:52.211850][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.103670fps
+[10/28 22:32:52.211892][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:32:52.211904][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:32:52.211939][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.103670fps
+[10/28 22:32:57.031208][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:32:57.051562][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:32:57.227658][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:32:57.227701][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:32:57.227715][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:32:57.227741][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:33:02.040156][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.145739fps
+[10/28 22:33:02.060509][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.145739fps
+[10/28 22:33:02.233302][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.163803fps
+[10/28 22:33:02.233343][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.163803fps
+[10/28 22:33:02.233359][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.163803fps
+[10/28 22:33:02.233383][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.163803fps
+[10/28 22:33:07.048359][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.151758fps
+[10/28 22:33:07.069396][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.145739fps
+[10/28 22:33:07.240354][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.157780fps
+[10/28 22:33:07.240394][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.157780fps
+[10/28 22:33:07.240398][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.157780fps
+[10/28 22:33:07.240417][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.157780fps
+[10/28 22:33:12.056137][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.151758fps
+[10/28 22:33:12.077265][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.151758fps
+[10/28 22:33:12.254112][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:33:12.254148][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:33:12.254169][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:33:12.254209][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:33:17.068743][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.127693fps
+[10/28 22:33:17.089700][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.127693fps
+[10/28 22:33:17.258952][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.169830fps
+[10/28 22:33:17.258984][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.169830fps
+[10/28 22:33:17.259004][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.169830fps
+[10/28 22:33:17.259050][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.169830fps
+[10/28 22:33:22.078255][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.139719fps
+[10/28 22:33:22.099102][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.139719fps
+[10/28 22:33:22.268282][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.145739fps
+[10/28 22:33:22.268328][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.145739fps
+[10/28 22:33:22.268345][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.145739fps
+[10/28 22:33:22.268385][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.145739fps
+[10/28 22:33:27.087000][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.145739fps
+[10/28 22:33:27.107929][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.145739fps
+[10/28 22:33:27.282849][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:33:27.282889][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:33:27.282908][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:33:27.282946][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:33:30.599777][warning][964108][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1447 logs in 48018ms**]
+[10/28 22:33:32.097374][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.139719fps
+[10/28 22:33:32.118368][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.139719fps
+[10/28 22:33:32.291910][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.145739fps
+[10/28 22:33:32.291947][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.145739fps
+[10/28 22:33:32.291954][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.145739fps
+[10/28 22:33:32.291994][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.145739fps
+[10/28 22:33:37.109449][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.127693fps
+[10/28 22:33:37.130516][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.127693fps
+[10/28 22:33:37.303335][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.133705fps
+[10/28 22:33:37.303375][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.133705fps
+[10/28 22:33:37.303381][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.133705fps
+[10/28 22:33:37.303419][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.133705fps
+[10/28 22:33:42.123000][info][964098][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:33:42.143896][info][964101][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:33:42.316623][info][964093][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:33:42.316659][info][964107][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:33:42.316684][info][964093][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:33:42.316713][info][964108][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              [10/28 22:38:32.299208][info][7195][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:38:32.299235][info][7195][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:38:32.299237][info][7195][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:38:32.299239][info][7195][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:38:33.305024][info][7195][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:38:33.305040][info][7195][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:38:33.660616][info][7195][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:38:33.660629][info][7195][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x725FC96AE8B0
+[10/28 22:38:33.663426][info][7195][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:38:33.674878][info][7702][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:38:34.130824][info][7195][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:38:34.130842][info][7195][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:38:34.130847][info][7195][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:38:34.130853][info][7195][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:38:34.130855][info][7195][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:38:34.300207][info][7195][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:38:34.300221][info][7195][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:38:34.300225][info][7195][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:38:34.300230][info][7195][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:38:34.300231][info][7195][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:38:34.300234][info][7195][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:38:34.301260][info][7195][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:38:34.301261][info][7195][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:38:34.702398][info][7713][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:38:34.702576][info][7713][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:38:34.944465][info][7717][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:38:35.463287][warning][7728][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:38:38.482661][warning][7728][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**91 logs in 3019ms**]
+[10/28 22:38:39.711533][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.545019fps
+[10/28 22:38:39.711582][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.545019fps
+[10/28 22:38:39.711594][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.545019fps
+[10/28 22:38:39.711622][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.545019fps
+[10/28 22:38:39.958481][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.315119fps
+[10/28 22:38:40.011873][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.423544fps
+[10/28 22:38:44.494129][warning][7724][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**181 logs in 6011ms**]
+[10/28 22:38:44.729428][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.091669fps
+[10/28 22:38:44.729468][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.091669fps
+[10/28 22:38:44.729484][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.091669fps
+[10/28 22:38:44.729515][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.091669fps
+[10/28 22:38:44.974304][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:38:45.023114][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.133705fps
+[10/28 22:38:49.740914][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.133705fps
+[10/28 22:38:49.740962][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.133705fps
+[10/28 22:38:49.740970][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.133705fps
+[10/28 22:38:49.741017][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.133705fps
+[10/28 22:38:49.985039][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.133705fps
+[10/28 22:38:50.041328][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.091669fps
+[10/28 22:38:54.757514][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:38:54.757564][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:38:54.757571][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:38:54.757595][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:38:54.997957][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:38:55.052632][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.127693fps
+[10/28 22:38:56.518065][warning][7724][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**362 logs in 12023ms**]
+[10/28 22:38:59.771618][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:38:59.771670][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:38:59.771678][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:38:59.771704][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:39:00.012133][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:39:00.064738][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.127693fps
+[10/28 22:39:04.784875][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:39:04.784924][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:39:04.784930][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:39:04.784954][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:39:05.024554][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:39:05.078037][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:39:09.798838][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:39:09.798891][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:39:09.798894][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:39:09.798922][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:39:10.039379][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:39:10.091697][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:39:14.812476][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:39:14.812527][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:39:14.812528][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:39:14.812570][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:39:15.051308][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.133705fps
+[10/28 22:39:15.105050][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:39:19.825813][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:39:19.825866][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:39:19.825869][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:39:19.825911][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:39:20.067323][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:39:20.119956][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:39:20.523121][warning][7724][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**723 logs in 24005ms**]
+[10/28 22:39:24.840158][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:39:24.840211][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:39:24.840213][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:39:24.840259][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:39:25.079369][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.127693fps
+[10/28 22:39:25.133439][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:39:29.854259][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:39:29.854316][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:39:29.854321][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:39:29.854346][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:39:30.094006][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:39:30.147345][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:39:34.868412][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:39:34.868455][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:39:34.868473][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:39:34.868510][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:39:35.106399][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:39:35.160796][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:39:39.882601][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:39:39.882652][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:39:39.882659][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:39:39.882673][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:39:40.119606][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:39:40.174568][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:39:44.894103][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.133705fps
+[10/28 22:39:44.894143][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.133705fps
+[10/28 22:39:44.894154][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.133705fps
+[10/28 22:39:44.894178][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.133705fps
+[10/28 22:39:45.133412][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:39:45.183583][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.145739fps
+[10/28 22:39:49.908342][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:39:49.908401][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:39:49.908403][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:39:49.908431][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:39:50.148675][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:39:50.196467][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:39:54.922276][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:39:54.922326][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:39:54.922330][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:39:54.922355][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:39:55.160090][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.133705fps
+[10/28 22:39:55.212596][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:39:59.935583][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:39:59.935633][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:39:59.935635][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:39:59.935667][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:40:00.173440][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:40:00.224972][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.127693fps
+[10/28 22:40:04.949751][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:40:04.949789][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:40:04.949799][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:40:04.949826][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:40:05.187993][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:40:05.240168][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:40:08.536243][warning][7724][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1446 logs in 48013ms**]
+[10/28 22:40:09.964431][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:40:09.964472][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:40:09.964474][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:40:09.964509][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:40:10.202181][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:40:10.253776][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:40:14.978464][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:40:14.978511][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:40:14.978511][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:40:14.978538][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:40:15.218407][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.097666fps
+[10/28 22:40:15.269796][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:40:19.994438][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.103670fps
+[10/28 22:40:19.994487][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:40:19.994489][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:40:19.994520][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.103670fps
+[10/28 22:40:20.231687][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:40:20.282962][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:40:25.007791][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:40:25.007830][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:40:25.007831][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:40:25.007867][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:40:25.246165][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:40:25.296262][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:40:30.023878][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.103670fps
+[10/28 22:40:30.023927][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:40:30.023928][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:40:30.023966][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.103670fps
+[10/28 22:40:30.260562][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:40:30.311950][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:40:35.037695][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:40:35.037744][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:40:35.037747][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:40:35.037773][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:40:35.275815][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:40:35.326169][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:40:40.052406][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:40:40.052450][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:40:40.052464][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:40:40.052497][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:40:40.290502][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:40:40.341538][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:40:45.066886][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:40:45.066935][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:40:45.066937][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:40:45.066974][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:40:45.305167][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:40:45.356221][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:40:50.082191][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:40:50.082242][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:40:50.082247][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:40:50.082284][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:40:50.319689][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:40:50.370424][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:40:55.095560][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:40:55.095611][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:40:55.095613][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:40:55.095660][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:40:55.334172][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:40:55.384494][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:41:00.111017][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:41:00.111069][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:41:00.111072][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:41:00.111109][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:41:00.349075][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:41:00.400555][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:41:05.125577][info][7713][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:41:05.125606][info][7723][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:41:05.125621][info][7713][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:41:05.125646][info][7724][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:41:05.364583][info][7717][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:41:05.414387][info][7728][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:41:07.021006][info][7195][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:41:07.021017][info][7195][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:41:07.021027][info][7195][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 22:41:07.394774][info][7195][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 22:41:07.394883][info][7195][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:41:07.394888][info][7195][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 22:41:07.394890][info][7195][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:41:07.394910][info][7195][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:41:07.394912][info][7195][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 22:41:08.063291][info][7195][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:41:08.063360][info][7195][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:41:08.063362][info][7195][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:41:08.063391][info][7195][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:41:08.063421][info][7195][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x725FC96AE8B0
+[10/28 22:41:08.063478][info][7195][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:41:08.064718][info][7195][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:41:08.064719][info][7195][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:41:08.064726][info][7195][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:41:08.064729][info][7195][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:41:08.138705][info][7195][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:41:08.138708][info][7195][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:41:08.565910][warning][8880][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1764 logs in 60029ms, last: 22:41:07.379625**]
+[10/28 22:41:08.923002][info][6890][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:41:08.923016][info][6890][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:41:08.923018][info][6890][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:41:08.923020][info][6890][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:41:09.926816][info][6890][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:41:09.926833][info][6890][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:41:10.269750][info][6890][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:41:10.269766][info][6890][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x63F21829F500
+[10/28 22:41:10.270185][info][6890][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:41:10.281072][info][9624][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:41:10.736385][info][6890][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:41:10.736395][info][6890][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:41:10.736399][info][6890][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:41:10.736404][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:41:10.736406][info][6890][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:41:10.835597][info][6890][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:41:10.835607][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:41:10.835610][info][6890][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:41:10.835614][info][6890][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:41:10.835615][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:41:10.835618][info][6890][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:41:10.836723][info][6890][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:41:10.836725][info][6890][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:41:11.044527][info][9634][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:41:11.237028][info][9626][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:41:11.237108][info][9626][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:41:11.733393][warning][9636][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:41:11.918787][info][6890][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:41:11.918794][info][6890][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:41:11.918807][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 22:41:12.293735][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 22:41:12.293815][info][6890][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:41:12.293822][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 22:41:12.293825][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:41:12.293853][info][6890][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:41:12.293855][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 22:41:12.992083][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:41:12.992183][info][6890][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:41:12.992185][info][6890][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:41:12.992206][info][6890][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:41:12.992235][info][6890][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x63F21829F500
+[10/28 22:41:12.992305][info][6890][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:41:12.993507][info][6890][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:41:12.993508][info][6890][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:41:12.993516][info][6890][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:41:12.993521][info][6890][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:41:13.017444][info][6890][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:41:13.017452][info][6890][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:41:13.020943][warning][9647][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**9 logs in 1287ms, last: 22:41:12.290232**]
+[10/28 22:41:32.875474][info][6890][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:41:32.875496][info][6890][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:41:32.875498][info][6890][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:41:32.875500][info][6890][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:41:33.879171][info][6890][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:41:33.879191][info][6890][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:41:34.223067][info][6890][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:41:34.223086][info][6890][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x63F2181C55E0
+[10/28 22:41:34.223583][info][6890][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:41:34.234141][info][9903][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:41:34.689355][info][6890][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:41:34.689364][info][6890][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:41:34.689368][info][6890][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:41:34.689373][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:41:34.689375][info][6890][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:41:34.797129][info][6890][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:41:34.797136][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:41:34.797138][info][6890][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:41:34.797142][info][6890][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:41:34.797143][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:41:34.797147][info][6890][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:41:34.807205][info][6890][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:41:34.807206][info][6890][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:41:35.016485][info][9913][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=1.168029fps
+[10/28 22:41:35.016503][info][9913][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:41:35.044314][info][9919][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=1.126173fps
+[10/28 22:41:35.207565][info][9909][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=1.460098fps
+[10/28 22:41:35.207571][info][9909][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:41:35.207678][info][9922][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=1.460098fps
+[10/28 22:41:35.207735][info][9909][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=1.460098fps
+[10/28 22:41:35.207737][info][9909][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:41:35.207820][info][9923][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=1.460098fps
+[10/28 22:41:35.666746][info][6890][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:41:35.666752][info][6890][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:41:35.666766][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 22:41:35.961833][warning][9922][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:41:36.035402][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 22:41:36.035482][info][6890][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:41:36.035488][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 22:41:36.035491][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:41:36.035525][info][6890][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:41:36.035527][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 22:41:36.638986][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:41:36.639079][info][6890][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:41:36.639081][info][6890][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:41:36.639100][info][6890][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:41:36.639128][info][6890][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x63F2181C55E0
+[10/28 22:41:36.639194][info][6890][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:41:36.640452][info][6890][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:41:36.640460][info][6890][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:41:36.640484][info][6890][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:41:36.640492][info][6890][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:41:36.664117][info][6890][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:41:36.664119][info][6890][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:41:36.886086][warning][9932][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**2 logs in 924ms, last: 22:41:36.029852**]
+[10/28 22:43:27.875674][info][6890][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:43:27.875697][info][6890][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:43:27.875698][info][6890][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:43:27.875700][info][6890][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:43:28.879799][info][6890][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:43:28.879818][info][6890][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:43:29.223569][info][6890][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:43:29.223597][info][6890][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x63F2274B2F70
+[10/28 22:43:29.224106][info][6890][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:43:29.234440][info][10923][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:43:29.689616][info][6890][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:43:29.689627][info][6890][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:43:29.689632][info][6890][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:43:29.689637][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:43:29.689639][info][6890][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:43:29.796934][info][6890][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:43:29.796938][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:43:29.796940][info][6890][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:43:29.796943][info][6890][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:43:29.796944][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:43:29.796947][info][6890][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:43:29.797924][info][6890][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:43:29.797924][info][6890][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:43:30.077753][info][10933][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=0.173821fps
+[10/28 22:43:30.077766][info][10933][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:43:30.107820][info][10936][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=0.165125fps
+[10/28 22:43:30.132394][info][10929][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=0.234936fps
+[10/28 22:43:30.132401][info][10929][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:43:30.132477][info][10938][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=0.234936fps
+[10/28 22:43:30.132637][info][10929][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=0.234936fps
+[10/28 22:43:30.132640][info][10929][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:43:30.132705][info][10939][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=0.234936fps
+[10/28 22:43:30.695123][info][6890][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:43:30.695128][info][6890][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:43:30.695141][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 22:43:31.019290][warning][10938][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:43:31.069636][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 22:43:31.069710][info][6890][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:43:31.069716][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 22:43:31.069719][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:43:31.069731][info][6890][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:43:31.069733][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 22:43:31.773136][info][6890][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:43:31.773207][info][6890][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:43:31.773209][info][6890][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:43:31.773227][info][6890][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:43:31.773256][info][6890][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x63F2274B2F70
+[10/28 22:43:31.773314][info][6890][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:43:31.774490][info][6890][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:43:31.774491][info][6890][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:43:31.774498][info][6890][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:43:31.774502][info][6890][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:43:31.798012][info][6890][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:43:31.798013][info][6890][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:43:31.887787][warning][10953][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1 logs in 868ms, last: 22:43:31.053530**]
+[10/28 22:49:38.892336][info][14848][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:49:38.892359][info][14848][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:49:38.892361][info][14848][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:49:38.892374][info][14848][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:49:39.895736][info][14848][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:49:39.895751][info][14848][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:49:40.239646][info][14848][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:49:40.239667][info][14848][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x5E4B4F0447B0
+[10/28 22:49:40.240187][info][14848][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:49:40.250821][info][15195][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:49:40.705641][info][14848][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:49:40.705650][info][14848][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:49:40.705654][info][14848][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:49:40.705658][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:49:40.705659][info][14848][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:49:40.862126][info][14848][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:49:40.862136][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:49:40.862139][info][14848][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:49:40.862143][info][14848][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:49:40.862144][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:49:40.862148][info][14848][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:49:40.871687][info][14848][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:49:40.871690][info][14848][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:49:41.080872][info][15210][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:49:41.271118][info][15206][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:49:41.271388][info][15206][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:49:41.766627][warning][15216][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:49:41.778402][info][14848][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:49:41.778407][info][14848][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:49:41.778417][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 22:49:42.162037][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 22:49:42.162131][info][14848][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:49:42.162139][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 22:49:42.162143][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:49:42.162166][info][14848][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:49:42.162169][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 22:49:42.800813][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:49:42.800898][info][14848][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:49:42.800900][info][14848][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:49:42.800919][info][14848][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:49:42.800946][info][14848][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x5E4B4F0447B0
+[10/28 22:49:42.801007][info][14848][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:49:42.802206][info][14848][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:49:42.802208][info][14848][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:49:42.802214][info][14848][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:49:42.802218][info][14848][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:49:42.825756][info][14848][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:49:42.825757][info][14848][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:49:42.903003][warning][15247][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**4 logs in 1136ms, last: 22:49:42.159094**]
+[10/28 22:52:37.587626][info][16606][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:52:37.587648][info][16606][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:52:37.587650][info][16606][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:52:37.587652][info][16606][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:52:38.594855][info][16606][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:52:38.594871][info][16606][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:52:38.937620][info][16606][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:52:38.937634][info][16606][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x72111625B380
+[10/28 22:52:38.938367][info][16606][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:52:38.948245][info][16760][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:52:39.403440][info][16606][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:52:39.403456][info][16606][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:52:39.403461][info][16606][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:52:39.403467][info][16606][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:52:39.403468][info][16606][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:52:39.496125][info][16606][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:52:39.496132][info][16606][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:52:39.496134][info][16606][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:52:39.496137][info][16606][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:52:39.496138][info][16606][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:52:39.496141][info][16606][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:52:39.497179][info][16606][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:52:39.497180][info][16606][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:52:39.706571][info][16773][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:52:39.896124][info][16765][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:52:39.896291][info][16765][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:52:40.394234][warning][16775][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:52:43.412505][warning][16779][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**91 logs in 3018ms**]
+[10/28 22:52:44.718339][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.333265fps
+[10/28 22:52:44.739057][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.387846fps
+[10/28 22:52:44.907574][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.526735fps
+[10/28 22:52:44.907607][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.526735fps
+[10/28 22:52:44.907641][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.526735fps
+[10/28 22:52:44.907679][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.526735fps
+[10/28 22:52:49.423624][warning][16779][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**181 logs in 6011ms**]
+[10/28 22:52:49.734095][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:52:49.754626][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:52:49.920799][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:52:49.920825][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:52:49.920843][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:52:49.920886][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:52:54.749401][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:52:54.774334][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.085674fps
+[10/28 22:52:54.935878][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:52:54.935926][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:52:54.935932][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:52:54.935976][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:52:59.764719][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:52:59.785267][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.133705fps
+[10/28 22:52:59.953089][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:52:59.953122][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:52:59.953150][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:52:59.953172][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:53:01.448697][warning][16779][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**362 logs in 12025ms**]
+[10/28 22:53:04.779490][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:53:04.800251][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:53:04.968412][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.103670fps
+[10/28 22:53:04.968448][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:53:04.968478][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:53:04.968506][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.103670fps
+[10/28 22:53:09.789574][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.139719fps
+[10/28 22:53:09.810376][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.133705fps
+[10/28 22:53:09.981963][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:53:09.982001][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:53:09.982020][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:53:09.982058][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:53:14.804773][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:53:14.825468][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:53:14.997431][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.103670fps
+[10/28 22:53:14.997469][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:53:14.997487][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:53:14.997527][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.103670fps
+[10/28 22:53:19.819430][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:53:19.839939][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:53:20.014922][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.097666fps
+[10/28 22:53:20.014967][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.097666fps
+[10/28 22:53:20.014979][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.097666fps
+[10/28 22:53:20.015012][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:53:24.834317][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:53:24.854946][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:53:25.026738][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:53:25.026800][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:53:25.026805][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.127693fps
+[10/28 22:53:25.026834][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:53:25.457666][warning][16779][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**723 logs in 24008ms**]
+[10/28 22:53:29.847996][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:53:29.868466][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:53:30.039698][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:53:30.039752][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:53:30.039763][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:53:30.039789][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:53:34.862595][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:53:34.883328][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:53:35.054740][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:53:35.054768][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:53:35.054783][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:53:35.054818][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:53:39.882012][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.085674fps
+[10/28 22:53:39.902546][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.079681fps
+[10/28 22:53:40.070101][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:53:40.070150][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:53:40.070164][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:53:40.070199][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:53:44.891111][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.145739fps
+[10/28 22:53:44.911603][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.145739fps
+[10/28 22:53:45.083698][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:53:45.083759][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:53:45.083768][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:53:45.083802][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:53:49.904839][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:53:49.925160][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:53:50.098395][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:53:50.098440][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:53:50.098447][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:53:50.098504][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:53:54.919859][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:53:54.940278][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:53:55.120373][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.073690fps
+[10/28 22:53:55.120411][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.067703fps
+[10/28 22:53:55.120422][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.067703fps
+[10/28 22:53:55.120453][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.067703fps
+[10/28 22:53:59.932973][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:53:59.953369][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:54:00.126103][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.163803fps
+[10/28 22:54:00.126148][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.169830fps
+[10/28 22:54:00.126166][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.169830fps
+[10/28 22:54:00.126193][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.169830fps
+[10/28 22:54:04.947392][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:54:04.967757][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:54:05.141701][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.103670fps
+[10/28 22:54:05.141749][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:54:05.141750][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:54:05.141797][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.103670fps
+[10/28 22:54:09.961516][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:54:09.982020][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:54:10.156512][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:54:10.156572][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:54:10.156573][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:54:10.156602][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:54:13.475028][warning][16779][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1446 logs in 48017ms**]
+[10/28 22:54:14.974844][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.121683fps
+[10/28 22:54:14.995319][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:54:15.168499][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.127693fps
+[10/28 22:54:15.168558][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.127693fps
+[10/28 22:54:15.168568][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.127693fps
+[10/28 22:54:15.168598][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:54:19.989722][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:54:20.010438][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:54:20.183060][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:54:20.183098][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:54:20.183109][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:54:20.183149][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:54:25.005575][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:54:25.026396][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:54:25.197312][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:54:25.197347][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.115677fps
+[10/28 22:54:25.197376][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:54:25.197403][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:54:30.020636][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:54:30.041032][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:54:30.212113][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:54:30.212162][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:54:30.212165][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.115677fps
+[10/28 22:54:30.212212][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.115677fps
+[10/28 22:54:35.033018][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.127693fps
+[10/28 22:54:35.053418][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.121683fps
+[10/28 22:54:35.226463][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:54:35.226509][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.109673fps
+[10/28 22:54:35.226530][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.109673fps
+[10/28 22:54:35.226567][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.109673fps
+[10/28 22:54:40.048980][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:54:40.069522][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:54:40.242337][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.109673fps
+[10/28 22:54:40.242394][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:54:40.242409][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:54:40.242448][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.103670fps
+[10/28 22:54:45.064212][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.109673fps
+[10/28 22:54:45.084742][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:54:45.255753][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.115677fps
+[10/28 22:54:45.255809][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:54:45.255819][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:54:45.255858][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:54:50.078344][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:54:50.098930][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:54:50.269100][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:54:50.269141][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:54:50.269160][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:54:50.269198][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.121683fps
+[10/28 22:54:55.091880][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.115677fps
+[10/28 22:54:55.112382][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.115677fps
+[10/28 22:54:55.285285][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.103670fps
+[10/28 22:54:55.285328][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.103670fps
+[10/28 22:54:55.285346][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.103670fps
+[10/28 22:54:55.285372][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.097666fps
+[10/28 22:55:00.108028][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:55:00.128777][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.103670fps
+[10/28 22:55:00.297989][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.121683fps
+[10/28 22:55:00.298028][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.121683fps
+[10/28 22:55:00.298031][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.121683fps
+[10/28 22:55:00.298066][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.127693fps
+[10/28 22:55:05.123574][info][16773][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=30.103670fps
+[10/28 22:55:05.144120][info][16775][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=30.109673fps
+[10/28 22:55:05.320686][info][16765][VideoSensor.cpp:153] [CL8L56301JF] Depth backend frame callback, frameRate=30.061718fps
+[10/28 22:55:05.320713][info][16778][SensorBase.cpp:379] [CL8L56301JF] Depth Streaming... frameRate=30.061718fps
+[10/28 22:55:05.320729][info][16765][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=30.061718fps
+[10/28 22:55:05.320743][info][16779][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=30.061718fps
+[10/28 22:55:08.081887][info][14848][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x5E4B4D5F11B0
+[10/28 22:55:08.081979][info][14848][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:55:08.081984][info][14848][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:55:08.081990][info][14848][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:55:08.081994][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STARTING@Depth
+[10/28 22:55:08.081996][info][14848][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:55:08.081999][info][14848][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:55:08.082000][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STARTING@IR
+[10/28 22:55:08.082001][info][14848][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:55:08.082003][info][14848][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:55:08.082003][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STARTING@Color
+[10/28 22:55:08.082006][info][14848][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:55:08.083266][warning][14848][ObException.cpp:32] A unrecoverable_exception has occurred!
+ - where: ObLibuvcDevicePort.cpp(129)
+ - msg: uvc_stream_open_ctrl failed!
+ - type: IO
+ - status: 115
+[10/28 22:55:08.095109][warning][14848][VideoSensor.cpp:145] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: VideoSensor.cpp(145):start
+ - msg: uvc_stream_open_ctrl failed!
+ - type: N11libobsensor23unrecoverable_exceptionE
+ - status: 115
+[10/28 22:55:08.095119][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to START_FAILED@Color
+[10/28 22:55:08.095125][warning][14848][Pipeline.cpp:248] [CL8L56301JF] Execute failure! A libobsensor_exception has occurred!
+ - where: Pipeline.cpp(248):start
+ - msg: uvc_stream_open_ctrl failed!
+ - type: N11libobsensor23unrecoverable_exceptionE
+ - status: 115
+[10/28 22:55:08.095133][info][14848][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:55:08.095134][info][14848][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:55:08.095135][info][14848][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:55:08.095137][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STOPPING@IR
+[10/28 22:55:08.095139][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:55:08.095176][info][14848][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:55:08.095177][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STOPPING@Depth
+[10/28 22:55:08.768680][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:55:08.768735][info][14848][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:55:08.768737][info][14848][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:55:08.768747][info][14848][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:55:09.832257][info][14848][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x5E4B4D5F11B0
+[10/28 22:55:12.781590][info][16606][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:55:12.781605][info][16606][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:55:12.781620][info][16606][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:55:12.781622][info][16606][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:55:12.781624][info][16606][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:55:12.781625][info][16606][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:55:12.781633][info][16606][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:55:12.781671][info][16606][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x72111625B380
+[10/28 22:55:12.781733][info][16606][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:55:12.790519][info][16606][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:55:12.790521][info][16606][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:55:12.790529][info][16606][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:55:12.790532][info][16606][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:55:12.876561][info][16606][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:55:12.876563][info][16606][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:55:13.510079][warning][17930][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1644 logs in 60034ms, last: 22:55:08.069617**]
+[10/28 22:55:18.043521][info][14848][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 22:55:18.043542][info][14848][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 22:55:18.043544][info][14848][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:55:18.043546][info][14848][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 22:55:19.048250][info][14848][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 22:55:19.048266][info][14848][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 22:55:19.394991][info][14848][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 22:55:19.395005][info][14848][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x5E4B4D5E2EE0
+[10/28 22:55:19.395463][info][14848][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 22:55:19.405954][info][18735][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 22:55:20.225046][info][14848][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 22:55:20.225061][info][14848][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 22:55:20.225066][info][14848][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:55:20.225070][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 22:55:20.225072][info][14848][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:55:20.332646][info][14848][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:55:20.332653][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 22:55:20.332655][info][14848][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 22:55:20.332658][info][14848][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 22:55:20.332659][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 22:55:20.332662][info][14848][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 22:55:20.333652][info][14848][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 22:55:20.333653][info][14848][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 22:55:20.579752][info][18745][VideoSensor.cpp:153] [CL8L56301JF] Color backend frame callback, frameRate=0.088415fps
+[10/28 22:55:20.579763][info][18745][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 22:55:20.610976][info][18751][SensorBase.cpp:379] [CL8L56301JF] Color Streaming... frameRate=0.088407fps
+[10/28 22:55:20.634046][info][18741][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 22:55:20.634235][info][18741][VideoSensor.cpp:153] [CL8L56301JF] IR backend frame callback, frameRate=0.088401fps
+[10/28 22:55:20.634238][info][18741][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 22:55:20.634355][info][18754][SensorBase.cpp:379] [CL8L56301JF] IR Streaming... frameRate=0.088401fps
+[10/28 22:55:21.206338][info][14848][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 22:55:21.206352][info][14848][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 22:55:21.206367][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 22:55:21.522741][warning][18753][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 22:55:21.590393][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 22:55:21.590472][info][14848][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 22:55:21.590478][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 22:55:21.590480][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 22:55:21.590513][info][14848][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 22:55:21.590515][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 22:55:22.263831][info][14848][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 22:55:22.263925][info][14848][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 22:55:22.263927][info][14848][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 22:55:22.263947][info][14848][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 22:55:22.263974][info][14848][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x5E4B4D5E2EE0
+[10/28 22:55:22.264037][info][14848][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:55:22.265971][info][14848][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:55:22.265979][info][14848][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:55:22.266003][info][14848][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:55:22.266009][info][14848][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 22:55:22.289376][info][14848][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 22:55:22.289377][info][14848][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 22:55:22.290776][warning][18768][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**2 logs in 768ms, last: 22:55:21.588765**]
+[10/28 23:00:53.299358][info][22045][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 23:00:53.299393][info][22045][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 23:00:53.299395][info][22045][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 23:00:53.299397][info][22045][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 23:00:54.304231][info][22045][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 23:00:54.304244][info][22045][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 23:00:54.647212][info][22045][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 23:00:54.647226][info][22045][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x6000049E2990
+[10/28 23:00:54.647809][info][22045][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 23:00:54.658249][info][22343][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 23:00:55.112920][info][22045][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 23:00:55.112929][info][22045][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 23:00:55.112934][info][22045][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 23:00:55.112938][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 23:00:55.112939][info][22045][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 23:00:55.264606][info][22045][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 23:00:55.264616][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 23:00:55.264619][info][22045][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 23:00:55.264623][info][22045][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 23:00:55.264624][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 23:00:55.264628][info][22045][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 23:00:55.265724][info][22045][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 23:00:55.265726][info][22045][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 23:00:55.552171][info][22354][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 23:00:55.565575][info][22349][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 23:00:55.565877][info][22349][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 23:00:56.145024][info][22045][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 23:00:56.145034][info][22045][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 23:00:56.145047][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 23:00:56.454764][warning][22357][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 23:00:56.524170][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 23:00:56.524250][info][22045][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 23:00:56.524257][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 23:00:56.524259][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 23:00:56.524290][info][22045][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 23:00:56.524292][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 23:00:57.129203][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 23:00:57.129319][info][22045][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 23:00:57.129324][info][22045][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 23:00:57.129346][info][22045][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 23:00:57.129394][info][22045][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x6000049E2990
+[10/28 23:00:57.129452][info][22045][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 23:00:57.130820][info][22045][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 23:00:57.130829][info][22045][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 23:00:57.130854][info][22045][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 23:00:57.130862][info][22045][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 23:00:57.154098][info][22045][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 23:00:57.154099][info][22045][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 23:00:57.317040][warning][22373][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**2 logs in 862ms, last: 23:00:56.521165**]
+[10/28 23:02:26.995463][info][22045][LinuxUsbPal.cpp:334] Create PollingDeviceWatcher!
+[10/28 23:02:26.995484][info][22045][DeviceManager.cpp:25] Current found device(s): (1)
+[10/28 23:02:26.995486][info][22045][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 23:02:26.995488][info][22045][DeviceManager.cpp:405] Enable net device enumeration: true
+[10/28 23:02:27.999507][info][22045][DeviceManager.cpp:25] Current device(s) list: (1)
+[10/28 23:02:27.999523][info][22045][DeviceManager.cpp:34] 	- Name: FemtoBolt, PID: 0x066b, SN/ID: CL8L56301JF, Connection: USB3.1
+[10/28 23:02:28.342240][info][22045][DeviceManager.cpp:199] Device created successfully! Name: Femto Bolt, PID: 0x066b, SN/ID: CL8L56301JF FW: 1.1.3
+[10/28 23:02:28.342259][info][22045][Pipeline.cpp:54] [CL8L56301JF] Pipeline created with device: {name: Femto Bolt, sn: CL8L56301JF}, @0x60002FED08C0
+[10/28 23:02:28.342728][info][22045][RawPhaseStreamer.cpp:482] Succeed to load depth engine plugin
+[10/28 23:02:28.352958][info][23227][RawPhaseStreamer.cpp:512] initNvramData: metadataHeader.size: 486496, metadataHeader.width: 0, metadataHeader.height: 0
+[10/28 23:02:28.808424][info][22045][Pipeline.cpp:228] [CL8L56301JF] Check and set config done!
+[10/28 23:02:28.808432][info][22045][Pipeline.cpp:266] [CL8L56301JF] Try to start streams!
+[10/28 23:02:28.808437][info][22045][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 23:02:28.808440][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Depth
+[10/28 23:02:28.808442][info][22045][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Depth, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 23:02:28.897636][info][22045][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 23:02:28.897646][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@IR
+[10/28 23:02:28.897648][info][22045][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: IR, format: Y16, width: 640, height: 576, fps: 15}
+[10/28 23:02:28.897652][info][22045][VideoSensor.cpp:58] [CL8L56301JF] Try to start stream: {type: Color, format: RGB, width: 3840, height: 2160, fps: 30}
+[10/28 23:02:28.897654][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPED to STARTING@Color
+[10/28 23:02:28.897657][info][22045][VideoSensor.cpp:127] [CL8L56301JF] Start backend stream: {type: Color, format: MJPG, width: 3840, height: 2160, fps: 30}
+[10/28 23:02:28.898730][info][22045][Pipeline.cpp:293] [CL8L56301JF] Start streams done!
+[10/28 23:02:28.898732][info][22045][Pipeline.cpp:250] [CL8L56301JF] Pipeline start done!
+[10/28 23:02:29.142863][info][23237][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Color
+[10/28 23:02:29.207476][info][23233][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@IR
+[10/28 23:02:29.207668][info][23233][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STARTING to STREAMING@Depth
+[10/28 23:02:29.764066][info][22045][Pipeline.cpp:367] [CL8L56301JF] Try to stop pipeline!
+[10/28 23:02:29.764071][info][22045][Pipeline.cpp:343] [CL8L56301JF] Try to stop streams!
+[10/28 23:02:29.764080][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Color
+[10/28 23:02:30.086728][warning][23245][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset!
+[10/28 23:02:30.128562][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Color
+[10/28 23:02:30.128634][info][22045][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Color
+[10/28 23:02:30.128641][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@IR
+[10/28 23:02:30.128644][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@IR
+[10/28 23:02:30.128686][info][22045][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=IR
+[10/28 23:02:30.128688][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STREAMING to STOPPING@Depth
+[10/28 23:02:30.759894][info][22045][SensorBase.cpp:210] [CL8L56301JF] Stream state changed from STOPPING to STOPPED@Depth
+[10/28 23:02:30.760002][info][22045][Pipeline.cpp:357] [CL8L56301JF] Sensor stream stopped, sensorType=Depth
+[10/28 23:02:30.760004][info][22045][Pipeline.cpp:363] [CL8L56301JF] Stop streams done!
+[10/28 23:02:30.760022][info][22045][Pipeline.cpp:392] [CL8L56301JF] Stop pipeline done!
+[10/28 23:02:30.760050][info][22045][Pipeline.cpp:65] [CL8L56301JF] Pipeline destroyed! @0x60002FED08C0
+[10/28 23:02:30.760106][info][22045][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 23:02:30.761430][info][22045][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 23:02:30.761431][info][22045][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 23:02:30.761439][info][22045][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 23:02:30.761443][info][22045][SensorBase.cpp:47] [CL8L56301JF] SensorBase is destroyed
+[10/28 23:02:30.785193][info][22045][ObLibuvcDevicePort.cpp:87] uvc_close done.
+[10/28 23:02:30.785195][info][22045][ObLibuvcDevicePort.cpp:88] ~ObLibuvcDevicePort done
+[10/28 23:02:31.006486][warning][23257][Pipeline.cpp:324] [CL8L56301JF] Output frameset queue is full, drop oldest frameset! [**1 logs in 919ms, last: 23:02:30.119915**]

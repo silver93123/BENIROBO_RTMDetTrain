@@ -193,3 +193,82 @@ class OutputConfig:
     def snapshot(self) -> tuple[str, np.ndarray | None, np.ndarray | None, float | None, float]:
         with self._lock:
             return self._frame, self._R, self._t, self._rms, self._limit
+
+
+# =============================================================================
+# 저장된 변환을 쓰는 출력 설정 (4-1 표시 / 5-2 TCP 응답용)
+# =============================================================================
+class SavedTransformOutput(OutputConfig):
+    """13번 탭이 '저장'한 변환(data/gripper_calib.json)을 읽어 쓰는 OutputConfig.
+
+    체크박스(enabled)가 켜져 있으면 frame="robot", 꺼져 있으면 "camera". 변환은 파일 수정시각이 바뀔 때마다
+    다시 읽으므로 13번 탭에서 다시 저장하면 서버를 재시작하지 않아도 다음 요청부터 반영된다.
+    저장 파일에 transform이 없으면(점 짝만 저장됨) 점 짝으로 다시 푼다.
+    """
+
+    def __init__(self, path: Path | None = None) -> None:
+        super().__init__()
+        self._path = Path(path) if path is not None else CALIB_PATH
+        self._enabled = False
+        self._mtime: float | None = None
+        self._memo = ""
+        self._n_used = 0
+        self._err = ""
+
+    def set_enabled(self, on: bool) -> None:
+        with self._lock:
+            self._enabled = bool(on)
+
+    def is_enabled(self) -> bool:
+        with self._lock:
+            return self._enabled
+
+    def _reload_locked(self) -> None:
+        try:
+            mtime = self._path.stat().st_mtime if self._path.is_file() else None
+        except OSError:
+            mtime = None
+        if mtime == self._mtime and (mtime is not None or self._err):
+            return
+        self._mtime = mtime
+        self._R = self._t = self._rms = None
+        self._memo, self._n_used, self._err = "", 0, ""
+        if mtime is None:
+            self._err = f"저장된 변환 파일이 없습니다 ({self._path.name}) - 13번 탭에서 변환을 계산하고 [저장]하세요"
+            return
+        try:
+            pairs, tf, memo, limit = load_calibration(self._path)
+            if tf is None:
+                fit = solve(pairs)
+                R, t, rms, n = fit.R, fit.t, fit.rms_mm, fit.n_used
+            else:
+                R, t, rms, n = np.asarray(tf["R"], float), np.asarray(tf["t"], float), float(tf["rms_mm"]), int(tf.get("n_used", 0))
+            if R.shape != (3, 3) or t.shape != (3,):
+                raise ValueError("변환 행렬 모양이 올바르지 않습니다")
+            self._R, self._t, self._rms, self._limit, self._memo, self._n_used = R, t, rms, limit, memo, n
+        except Exception as exc:  # noqa: BLE001 - 깨진 파일이어도 앱은 계속 돈다
+            self._err = f"저장된 변환을 읽지 못했습니다: {exc}"
+
+    def snapshot(self):
+        with self._lock:
+            self._reload_locked()
+            return ("robot" if self._enabled else "camera"), self._R, self._t, self._rms, self._limit
+
+    def check(self) -> tuple[str, str]:
+        """(코드, 설명). 코드: "" 정상 | "NO_CALIB" | "CALIB_BAD". 로봇 좌표 변환을 지금 쓸 수 있는지."""
+        with self._lock:
+            self._reload_locked()
+            if self._R is None or self._t is None:
+                return "NO_CALIB", self._err or "저장된 좌표 변환이 없습니다"
+            if self._rms is not None and self._rms > self._limit:
+                return "CALIB_BAD", f"변환 잔차 RMS {self._rms:.2f} mm 가 한계 {self._limit:.2f} mm 를 넘습니다"
+            memo = f" · 촬영 자세: {self._memo}" if self._memo else ""
+            return "", f"점 {self._n_used}개, 잔차 RMS {self._rms:.2f} mm{memo}"
+
+    def convert(self, xyz) -> tuple[float, float, float] | None:
+        """카메라 좌표 -> 로봇 좌표. 변환을 쓸 수 없으면 None."""
+        if self.check()[0]:
+            return None
+        with self._lock:
+            v = self._R @ np.asarray(xyz, dtype=float) + self._t
+        return float(v[0]), float(v[1]), float(v[2])

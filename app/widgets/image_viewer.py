@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import numpy as np
+import math
+
 from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal
 from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QFont, QImage
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QSlider, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSlider, QWidget
 
 from app.core.detector import Detection
 
@@ -16,6 +18,9 @@ POSE_OVERLAY_COLOR = QColor(0, 220, 255, POSE_OVERLAY_ALPHA)  # 하늘색 - 노�
 
 
 ROI_MIN_SIZE = 16  # px, 드래그로 이보다 작게 그리면 클릭으로 보고 무시
+ZOOM_STEP = 1.25   # 휠 한 칸당 배율
+MAX_SCALE = 40.0   # 최대 확대: 이미지 픽셀 1개 = 화면 40px
+PIXEL_GRID_SCALE = 6.0   # 이 배율 이상이면 마우스 아래 픽셀 칸을 표시
 
 
 def make_label_opacity_bar(viewer: "ImageViewer", initial_percent: int = 70) -> QWidget:
@@ -43,11 +48,46 @@ def make_label_opacity_bar(viewer: "ImageViewer", initial_percent: int = 70) -> 
     return box
 
 
+def make_zoom_bar(viewer: "ImageViewer") -> QWidget:
+    """확대/축소 막대: 배율 표시 + [－][＋][맞춤]. 호출하면 viewer의 확대 기능도 같이 켠다
+    (휠 = 커서 기준 확대/축소, 가운데/오른쪽 버튼 드래그 = 이동. 왼쪽 버튼은 기존 동작(ROI 등) 그대로)."""
+    viewer.set_zoom_enabled(True)
+    box = QWidget()
+    lay = QHBoxLayout(box)
+    lay.setContentsMargins(0, 0, 0, 0)
+    label = QLabel("")
+    label.setStyleSheet("color: #555;")
+    label.setFixedWidth(64)     # 글자 길이가 바뀌어도 주변 레이아웃 폭이 흔들리지 않게
+    label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+    lay.addWidget(label)
+    for text, tip, fn in (("－", "축소 (마우스 휠)", lambda: viewer.zoom_by(1 / 1.5)),
+                          ("＋", "확대 (마우스 휠)", lambda: viewer.zoom_by(1.5)),
+                          ("맞춤", "화면에 맞춤", viewer.reset_view)):
+        b = QPushButton(text)
+        b.setFixedWidth(46)
+        b.setToolTip(tip)
+        b.clicked.connect(lambda _=False, f=fn: f())
+        lay.addWidget(b)
+
+    def _on_zoom(scale: float) -> None:
+        label.setText(f"{scale * 100:.0f}%")
+        label.setToolTip(f"화면 배율 {scale * 100:.0f}% (이미지 픽셀 1개 = 화면 {scale:.2f}px)\n"
+                         "휠 = 확대/축소, 가운데/오른쪽 버튼 드래그 = 이동")
+
+    viewer.zoom_changed.connect(_on_zoom)
+    box.zoom_label = label
+    return box
+
+
 class ImageViewer(QLabel):
     #: 사용자가 마우스로 ROI를 그리면 (x1, y1, x2, y2) 이미지 좌표(x2/y2 미포함)로 알린다.
     roi_changed = pyqtSignal(int, int, int, int)
     #: 클릭 선택 모드(set_click_pick)에서 이미지 위를 왼쪽 클릭하면 이미지 좌표 (x, y)를 알린다.
     point_clicked = pyqtSignal(float, float)
+    #: 확대/이동으로 보이는 범위가 바뀔 때 현재 배율(이미지 픽셀 1개 = 화면 N px)을 알린다.
+    zoom_changed = pyqtSignal(float)
+    #: 확대 모드에서 마우스가 가리키는 이미지 픽셀 (u, v). 이미지 밖이면 (-1, -1).
+    pixel_hovered = pyqtSignal(int, int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -63,12 +103,21 @@ class ImageViewer(QLabel):
         self._roi: tuple[int, int, int, int] | None = None  # 표시할 ROI (이미지 좌표)
         self._roi_drawing = False        # True면 마우스 드래그로 ROI를 그릴 수 있다
         self._click_pick = False         # True면 왼쪽 클릭 한 점을 point_clicked로 알린다
+        # 확대/이동 (set_zoom_enabled(True)로 켠 위젯만). 꺼져 있거나 맞춤(1배)이면 기존 동작과 완전히 같다.
+        self._zoom_enabled = False
+        self._zoom = 1.0                 # 화면 맞춤 대비 배율
+        self._view_center: tuple[float, float] | None = None   # 보고 있는 이미지 중심 (이미지 좌표)
+        self._view_rect: tuple[int, int, int, int] | None = None  # 지금 그려진 이미지 범위 (x0, y0, w, h) - 확대 중일 때만
+        self._view_scale = 1.0           # 화면 px / 이미지 px (확대 렌더 시)
+        self._pan_last = None
+        self._hover_px: tuple[int, int] | None = None
         self._roi_drag_start: tuple[float, float] | None = None
         self._roi_before_drag: tuple[int, int, int, int] | None = None
         self.setText("이미지를 불러오세요")
 
     def load_image(self, path: str) -> None:
         self._base_pixmap = QPixmap(path)
+        self._zoom, self._view_center, self._view_rect = 1.0, None, None   # 새 이미지는 화면 맞춤으로
         self._detections = []
         self._pose_overlays = {}
         self._pick_overlays = []
@@ -121,13 +170,18 @@ class ImageViewer(QLabel):
             return None
         off_x = (self.width() - pw) / 2.0
         off_y = (self.height() - ph) / 2.0
-        x = (pos.x() - off_x) * size[0] / pw
-        y = (pos.y() - off_y) * size[1] / ph
+        rx, ry, rw, rh = self._view_rect if self._view_rect is not None else (0, 0, size[0], size[1])
+        x = rx + (pos.x() - off_x) * rw / pw
+        y = ry + (pos.y() - off_y) * rh / ph
         if not clamp and not (0.0 <= x < size[0] and 0.0 <= y < size[1]):
             return None
         return min(max(x, 0.0), size[0]), min(max(y, 0.0), size[1])
 
     def mousePressEvent(self, event) -> None:
+        if self._zoom_enabled and event.button() in (Qt.MouseButton.MiddleButton, Qt.MouseButton.RightButton):
+            self._pan_last = event.position()      # 가운데/오른쪽 버튼 드래그 = 이동 (왼쪽은 점 선택/ROI에 쓴다)
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            return
         if self._click_pick and event.button() == Qt.MouseButton.LeftButton:
             p = self._widget_to_image(event.position(), clamp=False)
             if p is not None:
@@ -142,6 +196,15 @@ class ImageViewer(QLabel):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:
+        if self._pan_last is not None and self._view_rect is not None:
+            d = event.position() - self._pan_last
+            self._pan_last = event.position()
+            cx, cy = self._view_center if self._view_center is not None else self._image_center()
+            self._view_center = (cx - d.x() / self._view_scale, cy - d.y() / self._view_scale)
+            self._refresh()
+            return
+        if self._zoom_enabled:
+            self._update_hover(event.position())
         if self._roi_drag_start is not None:
             p = self._widget_to_image(event.position())
             if p is not None:
@@ -152,6 +215,10 @@ class ImageViewer(QLabel):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
+        if self._pan_last is not None and event.button() in (Qt.MouseButton.MiddleButton, Qt.MouseButton.RightButton):
+            self._pan_last = None
+            self.setCursor(Qt.CursorShape.CrossCursor if (self._click_pick or self._roi_drawing) else Qt.CursorShape.ArrowCursor)
+            return
         if self._roi_drag_start is not None and event.button() == Qt.MouseButton.LeftButton:
             p = self._widget_to_image(event.position())
             x1, y1 = self._roi_drag_start
@@ -166,6 +233,144 @@ class ImageViewer(QLabel):
                 self._refresh()
             return
         super().mouseReleaseEvent(event)
+
+    # ------------------------------------------------------------------
+    # 확대 / 축소 / 이동 (set_zoom_enabled(True)인 위젯만)
+    # ------------------------------------------------------------------
+    def set_zoom_enabled(self, enabled: bool) -> None:
+        """True면 마우스 휠로 확대/축소(커서 위치 기준), 가운데/오른쪽 버튼 드래그로 이동한다."""
+        self._zoom_enabled = bool(enabled)
+        self.setMouseTracking(self._zoom_enabled)
+        # QLabel은 pixmap 크기를 최소 크기로 삼는다. 확대하면 pixmap 크기가 달라져 위젯이 레이아웃 안에서 같이 커지고
+        # (커서 기준 확대가 어긋남) 하므로, 확대를 쓰는 뷰어는 pixmap이 아니라 레이아웃이 크기를 정하게 한다.
+        pol = QSizePolicy.Policy.Ignored if self._zoom_enabled else QSizePolicy.Policy.Expanding
+        self.setSizePolicy(pol, pol)
+        if not enabled:
+            self.reset_view()
+
+    def _image_center(self) -> tuple[float, float]:
+        size = self.image_size()
+        return (size[0] / 2.0, size[1] / 2.0) if size else (0.0, 0.0)
+
+    def _fit_scale(self) -> float:
+        size = self.image_size()
+        if not size or self.width() <= 0 or self.height() <= 0:
+            return 1.0
+        return min(self.width() / size[0], self.height() / size[1])
+
+    def current_scale(self) -> float:
+        """화면 px / 이미지 px (맞춤이면 맞춤 배율)."""
+        return self._view_scale if self._view_rect is not None else self._fit_scale()
+
+    def reset_view(self) -> None:
+        self._zoom, self._view_center, self._view_rect = 1.0, None, None
+        self._refresh()
+
+    def zoom_by(self, factor: float, anchor=None) -> None:
+        """배율을 factor배로. anchor(위젯 좌표 QPointF)가 있으면 그 점 아래 이미지 위치를 고정한 채 확대한다."""
+        if not self._zoom_enabled or self.image_size() is None:
+            return
+        fit = self._fit_scale()
+        new_zoom = min(max(self._zoom * factor, 1.0), max(1.0, MAX_SCALE / max(fit, 1e-9)))
+        if abs(new_zoom - self._zoom) < 1e-9:
+            return
+        new_eff = fit * new_zoom
+        if anchor is not None and new_zoom > 1.0:
+            p = self._widget_to_image(anchor)
+            if p is not None:
+                self._view_center = (p[0] - (anchor.x() - self.width() / 2.0) / new_eff,
+                                     p[1] - (anchor.y() - self.height() / 2.0) / new_eff)
+        elif self._view_center is None:
+            self._view_center = self._image_center()
+        self._zoom = new_zoom
+        self._refresh()
+
+    def _compute_view_rect(self) -> tuple[int, int, int, int]:
+        size = self.image_size()
+        iw, ih = size
+        eff = self._fit_scale() * self._zoom
+        cx, cy = self._view_center if self._view_center is not None else self._image_center()
+        w = min(iw, max(1, int(round(self.width() / eff))))
+        h = min(ih, max(1, int(round(self.height() / eff))))
+        x0 = int(min(max(round(cx - w / 2.0), 0), iw - w))
+        y0 = int(min(max(round(cy - h / 2.0), 0), ih - h))
+        self._view_center = (x0 + w / 2.0, y0 + h / 2.0)     # 가장자리에서 더 못 가게 중심도 맞춘다
+        return x0, y0, w, h
+
+    def _render_zoomed(self) -> None:
+        """확대 렌더: 보이는 범위만 잘라 키운 뒤, 오버레이는 화면 좌표로 그린다 (선/글자가 확대돼 번지지 않게)."""
+        rx, ry, rw, rh = self._compute_view_rect()
+        crop = self._base_pixmap.copy(rx, ry, rw, rh)
+        s = min(self.width() / rw, self.height() / rh)
+        mode = Qt.TransformationMode.FastTransformation if s >= 2.0 else Qt.TransformationMode.SmoothTransformation
+        scaled = crop.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio, mode)
+        s = scaled.width() / rw                              # 실제로 적용된 배율
+        self._view_rect, self._view_scale = (rx, ry, rw, rh), s
+
+        def to_screen(x: float, y: float) -> QPointF:
+            return QPointF((x - rx) * s, (y - ry) * s)
+
+        painter = QPainter(scaled)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self._roi is not None:
+            x1, y1 = to_screen(self._roi[0], self._roi[1]).x(), to_screen(self._roi[0], self._roi[1]).y()
+            x2, y2 = to_screen(self._roi[2], self._roi[3]).x(), to_screen(self._roi[2], self._roi[3]).y()
+            shade = QColor(0, 0, 0, 120)
+            W, H = scaled.width(), scaled.height()
+            painter.fillRect(QRectF(0, 0, W, max(0.0, y1)), shade)
+            painter.fillRect(QRectF(0, y2, W, max(0.0, H - y2)), shade)
+            painter.fillRect(QRectF(0, y1, max(0.0, x1), max(0.0, y2 - y1)), shade)
+            painter.fillRect(QRectF(x2, y1, max(0.0, W - x2), max(0.0, y2 - y1)), shade)
+            painter.setPen(QPen(QColor(255, 210, 0), 2, Qt.PenStyle.DashLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(QRectF(x1, y1, x2 - x1, y2 - y1))
+        self._draw_pick_overlays(painter, scaled.width(), mapper=to_screen)
+        painter.end()
+        self.setPixmap(scaled)
+        self.zoom_changed.emit(s)
+
+    def wheelEvent(self, event) -> None:
+        if self._zoom_enabled and self.image_size() is not None:
+            steps = event.angleDelta().y() / 120.0
+            if steps:
+                self.zoom_by(ZOOM_STEP ** steps, event.position())
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        if self._hover_px is not None:
+            self._hover_px = None
+            self.pixel_hovered.emit(-1, -1)
+            self.update()
+        super().leaveEvent(event)
+
+    def _update_hover(self, pos) -> None:
+        p = self._widget_to_image(pos, clamp=False)
+        px = None if p is None else (int(math.floor(p[0])), int(math.floor(p[1])))
+        if px != self._hover_px:
+            self._hover_px = px
+            self.pixel_hovered.emit(*(px if px is not None else (-1, -1)))
+            self.update()
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        # 충분히 확대했으면 마우스 아래의 이미지 픽셀 한 칸을 표시 (= 클릭하면 읽히는 픽셀)
+        if not (self._zoom_enabled and self._hover_px is not None and self._view_rect is not None
+                and self._view_scale >= PIXEL_GRID_SCALE):
+            return
+        pm = self.pixmap()
+        if pm is None or pm.isNull():
+            return
+        rx, ry, _rw, _rh = self._view_rect
+        off_x, off_y = (self.width() - pm.width()) / 2.0, (self.height() - pm.height()) / 2.0
+        u, v = self._hover_px
+        s = self._view_scale
+        painter = QPainter(self)
+        painter.setPen(QPen(QColor(255, 60, 60), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(QRectF(off_x + (u - rx) * s, off_y + (v - ry) * s, s, s))
+        painter.end()
 
     def set_box_opacity(self, opacity: float) -> None:
         """bbox 테두리/라벨과 픽 포인트 좌표 라벨의 불투명도(0=완전 투명 ~ 1=불투명). 라벨이 물체를 가릴 때 낮춘다."""
@@ -193,6 +398,11 @@ class ImageViewer(QLabel):
         if self._base_pixmap is None or self._base_pixmap.isNull():
             self.setText("이미지를 불러오세요")
             return
+        if self._zoom_enabled and self._zoom > 1.0 + 1e-9:
+            self._render_zoomed()
+            return
+        if self._view_rect is not None:
+            self._view_rect = None       # 맞춤으로 돌아옴
 
         canvas = QPixmap(self._base_pixmap)
         painter = QPainter(canvas)
@@ -264,13 +474,18 @@ class ImageViewer(QLabel):
             Qt.TransformationMode.SmoothTransformation,
         )
         self.setPixmap(scaled)
+        if self._zoom_enabled:
+            self.zoom_changed.emit(self._fit_scale())
 
-    def _draw_pick_overlays(self, painter: QPainter, image_w: int) -> None:
-        """픽 포인트(원) + 축 3개(X/Y/Z) + 좌표 텍스트. 굵기/글자는 이미지 폭에 비례."""
+    def _draw_pick_overlays(self, painter: QPainter, image_w: int, mapper=None) -> None:
+        """픽 포인트(원) + 축 3개(X/Y/Z) + 좌표 텍스트. 굵기/글자는 이미지 폭에 비례.
+
+        mapper(x, y) -> QPointF 가 있으면 이미지 좌표를 그 변환(확대 렌더의 화면 좌표)으로 옮겨 그리고 크기는 화면 px 그대로 쓴다.
+        """
         if not self._pick_overlays:
             return
         # 화면에 표시되는 크기가 이미지 해상도와 무관하게 거의 일정하도록 축소 비율만큼 키운다.
-        unit = max(1.0, image_w / max(self.width(), 1))
+        unit = 1.0 if mapper is not None else max(1.0, image_w / max(self.width(), 1))
         axis_colors = [QColor(230, 40, 40), QColor(40, 190, 60), QColor(50, 100, 255)]
         axis_names = ["X", "Y", "Z"]
         font = QFont()
@@ -280,7 +495,11 @@ class ImageViewer(QLabel):
         fm = painter.fontMetrics()
         for ov in self._pick_overlays:
             ox, oy = ov["origin"]
+            if mapper is not None:
+                ox, oy = (lambda q: (q.x(), q.y()))(mapper(ox, oy))
             for (ex, ey), col, name in zip(ov["axes"], axis_colors, axis_names):
+                if mapper is not None:
+                    ex, ey = (lambda q: (q.x(), q.y()))(mapper(ex, ey))
                 painter.setPen(QPen(col, 2.5 * unit, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
                 painter.drawLine(QPointF(ox, oy), QPointF(ex, ey))
                 painter.drawText(QPointF(ex + 3 * unit, ey - 3 * unit), name)

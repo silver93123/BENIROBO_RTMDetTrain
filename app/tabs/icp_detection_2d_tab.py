@@ -15,6 +15,10 @@ import numpy as np
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QCheckBox, QFrame, QLabel, QMessageBox, QPushButton, QVBoxLayout
 
+from app.core.app_settings import get_settings
+from app.core.point_pair_calib import SavedTransformOutput
+from app.widgets.elided_label import ElidedLabel
+
 from app.core import pose_from_template
 from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd, project_points
 from app.core.detect_test_common import load_settings_paths
@@ -54,6 +58,97 @@ class ICPDetection2DTab(ICPDetectionTestTab):
         for i, w in enumerate((self.btn_run_2d, self.btn_calc_2d, self.chk_depth_correct)):
             self._top_row.insertWidget(1 + i, w)
 
+        # 표시/로그 좌표계: 13번 탭에서 저장한 변환으로 카메라 -> 로봇 (5-2 서버의 같은 체크박스와 동일한 변환/기준)
+        self._output = SavedTransformOutput()
+        self.chk_robot = QCheckBox("로봇 좌표로 변환")
+        self.chk_robot.setToolTip(
+            "켜면 pick X,Y,Z 표시/로그를 13번 탭에서 [저장]한 좌표 변환(카메라→로봇)으로 바꿉니다 (ICP/2D 기반 모두).\n"
+            "회전(R/P/Y)과 '기존 vs pcd 직접 읽기' 비교의 Δ는 카메라 기준 그대로입니다.\n"
+            "카메라가 로봇 손에 달려 있으면 보정 때와 같은 촬영 자세에서만 맞습니다.")
+        self.chk_robot.toggled.connect(self._on_robot_toggled)
+        # 상태 문구는 폭에 맞춰 잘라 보인다 (길어지면 상단 줄/창 폭이 같이 커지던 문제 방지; 전체 문구는 툴팁)
+        self.lbl_robot = ElidedLabel("")
+        self.lbl_robot.setStyleSheet("color: #666; font-size: 11px;")
+        self.lbl_robot.setMaximumWidth(260)
+        self._top_row.insertWidget(4, self.chk_robot)
+        self._top_row.insertWidget(5, self.lbl_robot)
+
+        # 검출/보정 옵션을 5-2 서버가 쓰는 '12. 설정' 값과 맞춘다 (저장할 때마다 다시 맞춤)
+        self._sync_from_settings()
+        get_settings().changed.connect(self._on_settings_changed)
+
+    # ------------------------------------------------------------------
+    # 5-2와 같은 검출/보정 옵션 (12. 설정 탭 값)
+    # ------------------------------------------------------------------
+    def _sync_from_settings(self) -> None:
+        """신뢰도 / 형상 보정 / 의심 마스크 제외 / 깊이 보정 위젯을 저장된 설정값으로 채운다 (5-2가 쓰는 값과 동일)."""
+        snap = get_settings().snapshot()
+        r = snap.refine
+        pairs = ((self.chk_refine, r.enabled), (self.chk_depth_phi, r.depth_phi), (self.chk_overlap, r.resolve_overlap),
+                 (self.chk_suspect, r.hide_suspect), (self.chk_depth_correct, r.depth_correct))
+        widgets = [w for w, _v in pairs] + [self.spin_depth_tol, self.spin_min_score, self.thresh_slider]
+        for w in widgets:
+            w.blockSignals(True)
+        try:
+            for w, v in pairs:
+                w.setChecked(bool(v))
+            self.spin_depth_tol.setValue(float(r.depth_tol_mm))
+            self.spin_min_score.setValue(float(r.min_score))
+            self.thresh_slider.setValue(int(round(snap.detection.conf_threshold * 100)))
+        finally:
+            for w in widgets:
+                w.blockSignals(False)
+        self.thresh_label.setText(f"{self.thresh_slider.value() / 100:.2f}")
+
+    def _on_settings_changed(self) -> None:
+        self._sync_from_settings()
+        self._refresh_robot_label()
+        if self._raw_detections:
+            self._on_refine_option_changed(force=True)   # 이미 검출한 결과도 새 보정/제외 기준으로 다시 만든다
+        else:
+            self._render_result_panel(self._icp_results)
+
+    # ------------------------------------------------------------------
+    # 좌표계 (카메라 / 로봇)
+    # ------------------------------------------------------------------
+    def _robot_active(self) -> bool:
+        return self.chk_robot.isChecked() and not self._output.check()[0]
+
+    def _out_xyz(self, xyz) -> tuple[float, float, float]:
+        if self._robot_active():
+            v = self._output.convert(xyz)
+            if v is not None:
+                return v
+        return super()._out_xyz(xyz)
+
+    def _frame_tag(self) -> str:
+        return " (로봇 좌표)" if self._robot_active() else ""
+
+    def _refresh_robot_label(self) -> None:
+        if not self.chk_robot.isChecked():
+            self.lbl_robot.setText("")   # 상단 줄이 좁아 꺼져 있을 땐 문구를 두지 않는다 (카메라 좌표가 기본)
+            return
+        code, text = self._output.check()
+        self.lbl_robot.setText(("⚠ 카메라 좌표로 표시 중: " + text) if code else ("로봇 좌표로 표시 · " + text))
+        self.lbl_robot.setStyleSheet(f"color: {'#c0392b' if code else '#2a8a2a'}; font-size: 11px;")
+
+    @_guarded
+    def _on_robot_toggled(self, on: bool) -> None:
+        if on:
+            code, text = self._output.check()
+            if code:
+                QMessageBox.warning(self, "로봇 좌표로 변환할 수 없음",
+                                    f"{text}\n\n13번 탭에서 점 짝을 모아 [변환 계산] 후 [저장]하세요.")
+                self.chk_robot.blockSignals(True)
+                self.chk_robot.setChecked(False)
+                self.chk_robot.blockSignals(False)
+                on = False
+        self._output.set_enabled(on)
+        self._refresh_robot_label()
+        self._log("표시 좌표계: " + ("로봇 (저장된 변환 적용)" if on else "카메라"))
+        self._render_result_panel(self._icp_results)
+        self._show_pick_overlays(self._icp_results)
+
     # ------------------------------------------------------------------
     # 상태 초기화 (검출이 바뀌면 2D 결과도 무효)
     # ------------------------------------------------------------------
@@ -86,7 +181,7 @@ class ICPDetection2DTab(ICPDetectionTestTab):
     def _on_calc_2d(self, quiet: bool = False) -> None:
         if not self._detections:
             if not quiet:
-                QMessageBox.warning(self, "알림", "먼저 2D 검출을 실행하세요.")
+                QMessageBox.warning(self, "알림", self._no_detection_message())
             return
         if not self._refine_applied or not self._refine_results:
             if not quiet:
@@ -122,8 +217,9 @@ class ICPDetection2DTab(ICPDetectionTestTab):
             self._pick2d.append(p)
             if p.ok:
                 e = p.pose["euler_deg"]
-                self._log(f"  obj{i} 2D 기반 pick=({p.pick_point_mm[0]:+.1f}, {p.pick_point_mm[1]:+.1f}, "
-                          f"{p.pick_point_mm[2]:+.1f}) mm  R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} "
+                px = self._out_xyz(p.pick_point_mm)
+                self._log(f"  obj{i} 2D 기반 pick{self._frame_tag()}=({px[0]:+.1f}, {px[1]:+.1f}, "
+                          f"{px[2]:+.1f}) mm  R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} "
                           f"Y{e['yaw_deg']:+.1f} deg  (φ{p.phi_deg:+.0f} θ{p.theta_deg:.0f}, "
                           f"Z 표면 {p.z_surface_mm:.1f} → 중심 {p.z_center_mm:.1f}, roll 고정)")
             else:
@@ -180,8 +276,9 @@ class ICPDetection2DTab(ICPDetectionTestTab):
                 continue
             uv = project_points(pts, self._intr)
             e = p.pose["euler_deg"]
+            ox = self._out_xyz(origin)
             label = (f"2D obj{i} (roll 고정)\n"
-                     f"X{origin[0]:+.1f} Y{origin[1]:+.1f} Z{origin[2]:+.1f} mm\n"
+                     f"X{ox[0]:+.1f} Y{ox[1]:+.1f} Z{ox[2]:+.1f} mm{self._frame_tag()}\n"
                      f"R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} Y{e['yaw_deg']:+.1f} deg")
             out.append({"origin": tuple(uv[0]), "axes": [tuple(q) for q in uv[1:]], "label": label, "dot": DOT_2D, "label_above": True})
         return out
@@ -206,8 +303,8 @@ class ICPDetection2DTab(ICPDetectionTestTab):
                 lay.addWidget(err)
             else:
                 e = p.pose["euler_deg"]
-                pos = p.pick_point_mm
-                lay.addWidget(QLabel(f"pick X{pos[0]:+.1f} Y{pos[1]:+.1f} Z{pos[2]:+.1f} mm"))
+                pos = self._out_xyz(p.pick_point_mm)
+                lay.addWidget(QLabel(f"pick{self._frame_tag()} X{pos[0]:+.1f} Y{pos[1]:+.1f} Z{pos[2]:+.1f} mm"))
                 lay.addWidget(QLabel(f"R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} Y{e['yaw_deg']:+.1f} deg"))
                 info = QLabel(f"φ{p.phi_deg:+.0f}° θ{p.theta_deg:.0f}°  Z 표면 {p.z_surface_mm:.1f} → 중심 {p.z_center_mm:.1f}")
                 info.setStyleSheet("color: #888; font-size: 10px;")
@@ -237,8 +334,8 @@ class ICPDetection2DTab(ICPDetectionTestTab):
         else:
             c = pose_from_template.compare_methods(
                 base, q, self._refine_results[i].center_uv, self._intr, self._pcd.shape)
-            pos = q.pick_point_mm
-            text = (f"pcd 직접 읽기 [{q.source}]\n"
+            pos = q.pick_point_mm   # 이 카드는 '기존 대비 Δ'와 함께 보므로 항상 카메라 좌표
+            text = (f"pcd 직접 읽기 [{q.source}] (카메라 좌표)\n"
                     f"pick X{pos[0]:+.1f} Y{pos[1]:+.1f} Z{pos[2]:+.1f} mm\n"
                     f"기존 대비 ΔX{c['dx']:+.2f} ΔY{c['dy']:+.2f} ΔZ{c['dz']:+.2f} mm\n"
                     f"|Δ| 3D {c['d3_mm']:.2f} / XY {c['dxy_mm']:.2f} mm\n"
