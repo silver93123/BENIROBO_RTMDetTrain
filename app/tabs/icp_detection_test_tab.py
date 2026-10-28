@@ -4,6 +4,9 @@ data/dataset/<세션>/ 의 프레임 하나를 불러와 "2D 검출 -> 형상 �
 단계별로 돌려 보고, 단계마다 결과를 눈으로 확인하는 테스트 탭이다.
 
     입력: 세션 프레임 (intensity.png + pointcloud_organized.npy + valid_mask.npy)
+          또는 [카메라로 촬영]한 프레임 (같은 데이터를 메모리에 보관 - 프레임 목록에 '[촬영]'으로 추가됨)
+    설정: 체크포인트 / config / CAD / 카메라 값은 이 탭에서 입력하지 않고 '12. 설정' 탭 저장값을 쓴다
+          (app/core/detect_test_common.py)
 
     2D 검출
         ROI 크롭                드래그/숫자 지정, 영역 안만 잘라 추론
@@ -45,17 +48,18 @@ from PyQt6.QtWidgets import (
 from app.core import icp_runner
 from app.core.app_settings import get_settings
 from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd, project_points
-from app.core.config_patcher import find_latest_best_checkpoint
+from app.core.detect_test_common import (
+    busy_cursor, capture_frame, load_settings_paths, new_capture_name, save_intensity_png, summary_text,
+)
 from app.core.detector import Detection, Detector
 from app.core.icp_param_specs import B_SECTIONS, FGR_SPECS
 from app.core.icp_runner import ICPParams, ICPResult
-from app.core.paths import DEFAULT_CAD_DIR, DEFAULT_CONFIG_PATH, DEFAULT_DATASET_ROOT
+from app.core.paths import DEFAULT_DATASET_ROOT
 from app.core.registration import AVAILABLE_REGISTRATION_TYPES
 from app.widgets.image_viewer import ImageViewer, make_label_opacity_bar
 from src.detection.mask_refine import RefineParams, RefineResult, get_bank, refine_masks
 
 DEFAULT_SCORE_THRESHOLD = 0.3
-CAD_EXTS = {".stl", ".ply", ".obj"}
 ROI_MIN_SIZE = 16  # px, ImageViewer.ROI_MIN_SIZE와 동일 기준
 
 # 3D 정합 파라미터 UI 명세는 설정 탭과 공용이다 (app/core/icp_param_specs.py) -
@@ -108,11 +112,13 @@ class ICPDetectionTestTab(QWidget):
         self._cad_init_rot_loaded: tuple[float, float, float] | None = None
         self._cad_ref_dist_loaded: float | None = None
         self._viewer_process: QProcess | None = None
+        # 카메라 촬영본: 이름 -> {"image_path": 임시 PNG, "pcd": (H,W,3) mm, "valid": (H,W) bool}. 이번 실행 중 메모리에만 보관.
+        self._captures: dict[str, dict] = {}
         # UI
         self._param_widgets: dict[str, QWidget] = {}
         self._build_ui()
-        self._prefill_latest_checkpoint()
-        self._refresh_cad_list()
+        self._refresh_settings_label()
+        get_settings().changed.connect(self._refresh_settings_label)   # 설정 탭에서 저장하면 안내 문구 갱신
         self._load_params_from_settings(announce=False)
 
     # =================================================================
@@ -178,6 +184,15 @@ class ICPDetectionTestTab(QWidget):
         session_row.addWidget(btn_browse_session)
         left.addLayout(session_row)
 
+        self.btn_capture = QPushButton("카메라로 촬영")
+        self.btn_capture.setToolTip(
+            "'12. 설정' 탭 > '카메라'의 값(카메라 타입, 평균화 프레임 수)으로 한 장 촬영해 아래 프레임 목록에 추가합니다.\n"
+            "점군(3D)도 함께 보관하므로 형상 보정 + ICP 정합까지 그대로 돌릴 수 있습니다 (이번 실행 중 메모리에만 보관).\n"
+            "촬영하는 동안 화면이 잠깐 멈춥니다 (평균화 프레임이 많을수록 길어짐)."
+        )
+        self.btn_capture.clicked.connect(lambda _=False: self._on_capture())
+        left.addWidget(self.btn_capture)
+
         self.frame_count_label = QLabel("프레임 목록 (0장)")
         self.frame_count_label.setStyleSheet("color: #666; font-size: 11px; margin-top: 8px;")
         left.addWidget(self.frame_count_label)
@@ -185,34 +200,10 @@ class ICPDetectionTestTab(QWidget):
         self.frame_list.currentRowChanged.connect(self._on_frame_row_changed)
         left.addWidget(self.frame_list, stretch=1)
 
-        left.addWidget(QLabel("체크포인트"))
-        self.checkpoint_edit = QLineEdit()
-        left.addWidget(self.checkpoint_edit)
-        btn_ckpt = QPushButton("선택")
-        btn_ckpt.clicked.connect(lambda _=False: self._on_browse_checkpoint())
-        left.addWidget(btn_ckpt)
-
-        left.addWidget(QLabel("config"))
-        self.config_edit = QLineEdit()
-        left.addWidget(self.config_edit)
-        btn_cfg = QPushButton("선택")
-        btn_cfg.clicked.connect(lambda _=False: self._on_browse_config())
-        left.addWidget(btn_cfg)
-
-        left.addWidget(QLabel("CAD 모델 (형상 보정 + 정합 공용)"))
-        cad_row = QHBoxLayout()
-        self.cad_combo = QComboBox()
-        cad_row.addWidget(self.cad_combo, stretch=1)
-        btn_refresh_cad = QPushButton("↻")
-        btn_refresh_cad.setFixedWidth(28)
-        btn_refresh_cad.setToolTip("data/cad/ 폴더 다시 스캔")
-        btn_refresh_cad.clicked.connect(lambda _=False: self._refresh_cad_list())
-        cad_row.addWidget(btn_refresh_cad)
-        left.addLayout(cad_row)
-        cad_hint = QLabel(f"{DEFAULT_CAD_DIR} 폴더 스캔")
-        cad_hint.setStyleSheet("color: #888; font-size: 10px;")
-        cad_hint.setWordWrap(True)
-        left.addWidget(cad_hint)
+        # 체크포인트 / config / CAD(형상 보정 + 정합 공용)는 '12. 설정' 탭 저장값을 쓴다 - 지금 무엇이 쓰이는지만 보여준다.
+        self.settings_label = QLabel("")
+        self.settings_label.setWordWrap(True)
+        left.addWidget(self.settings_label)
         return left_widget
 
     # --------------------------------------------------------- 2D 검출 그룹
@@ -475,46 +466,15 @@ class ICPDetectionTestTab(QWidget):
         return right_widget
 
     # =================================================================
-    # 체크포인트 / config / CAD
+    # 체크포인트 / config / CAD ('12. 설정' 탭 저장값)
     # =================================================================
-    def _prefill_latest_checkpoint(self) -> None:
-        if not DEFAULT_CONFIG_PATH.is_file():
-            return
-        cfg_path = str(DEFAULT_CONFIG_PATH)
-        self.config_edit.setText(cfg_path)
-        best = find_latest_best_checkpoint(cfg_path)
-        if best:
-            self.checkpoint_edit.setText(best)
-            self._log(f"최신 best 체크포인트 자동 설정: {best}")
-
-    @_guarded
-    def _on_browse_checkpoint(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "체크포인트 선택", "", "PyTorch (*.pth)")
-        if path:
-            self.checkpoint_edit.setText(path)
-            self.checkpoint_edit.setToolTip(path)
-
-    @_guarded
-    def _on_browse_config(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "config 파일 선택", "", "Python (*.py)")
-        if path:
-            self.config_edit.setText(path)
-            self.config_edit.setToolTip(path)
-
-    def _refresh_cad_list(self) -> None:
-        self.cad_combo.clear()
-        if not DEFAULT_CAD_DIR.is_dir():
-            self._log(f"CAD 폴더 없음: {DEFAULT_CAD_DIR}")
-            return
-        files = sorted(f for f in DEFAULT_CAD_DIR.iterdir()
-                       if f.is_file() and f.suffix.lower() in CAD_EXTS)
-        for f in files:
-            self.cad_combo.addItem(f.name, str(f))
-        # 형상 보정은 길쭉한 부품용이라, 'bolt'가 들어간 CAD가 정확히 하나면 그걸 기본 선택한다.
-        bolts = [i for i, f in enumerate(files) if "bolt" in f.name.lower()]
-        if len(bolts) == 1:
-            self.cad_combo.setCurrentIndex(bolts[0])
-        self._log(f"CAD 폴더 스캔: {len(files)}개")
+    def _refresh_settings_label(self) -> None:
+        """'12. 설정' 탭의 체크포인트 / config / CAD가 지금 무엇인지 보여준다 (문제가 있으면 빨갛게)."""
+        text, tooltip, ok = summary_text(load_settings_paths(), need_cad=True)
+        self.settings_label.setText(text)
+        self.settings_label.setToolTip(tooltip)
+        self.settings_label.setStyleSheet(
+            "color: #888; font-size: 10px;" if ok else "color: #c0392b; font-size: 10px;")
 
     # =================================================================
     # 세션 / 프레임
@@ -556,13 +516,15 @@ class ICPDetectionTestTab(QWidget):
         usable = [s for s in stems if (organized_dir / f"{s}.npy").is_file()
                   and (mask_dir / f"{s}.npy").is_file()]
 
-        self._frame_names = usable
+        self._frame_names = usable + list(self._captures)   # 촬영본은 세션을 바꿔도 목록에 유지
         self.frame_list.blockSignals(True)
         self.frame_list.clear()
         for s in usable:
             self.frame_list.addItem(QListWidgetItem(s))
+        for name in self._captures:
+            self.frame_list.addItem(QListWidgetItem(f"[촬영] {name}"))
         self.frame_list.blockSignals(False)
-        self.frame_count_label.setText(f"프레임 목록 ({len(usable)}장)")
+        self.frame_count_label.setText(f"프레임 목록 ({len(self._frame_names)}장)")
         self._reset_frame_state()
 
         if not usable:
@@ -574,19 +536,54 @@ class ICPDetectionTestTab(QWidget):
 
     @_guarded
     def _on_frame_row_changed(self, row: int) -> None:
-        if row < 0 or row >= len(self._frame_names) or not self._session_path:
+        if row < 0 or row >= len(self._frame_names):
             return
         name = self._frame_names[row]
-        base = Path(self._session_path)
-        self._pcd = np.load(base / "pointcloud_organized" / f"{name}.npy")
-        self._valid = np.load(base / "valid_mask" / f"{name}.npy").astype(bool)
-        self._image_path = str(base / "intensity" / f"{name}.png")
+        cap = self._captures.get(name)
+        if cap is not None:   # 카메라 촬영본: 점군/유효마스크가 이미 메모리에 있다
+            self._pcd, self._valid, self._image_path = cap["pcd"], cap["valid"], cap["image_path"]
+        else:
+            if not self._session_path:
+                return
+            base = Path(self._session_path)
+            self._pcd = np.load(base / "pointcloud_organized" / f"{name}.npy")
+            self._valid = np.load(base / "valid_mask" / f"{name}.npy").astype(bool)
+            self._image_path = str(base / "intensity" / f"{name}.png")
         self._current_frame = name
 
         self.image_viewer.load_image(self._image_path)
         self._sync_roi_to_image()
         self._clear_detection_state()
         self._log(f"프레임 준비: {name}")
+
+    @_guarded
+    def _on_capture(self) -> None:
+        """카메라로 한 장 촬영해 프레임 목록에 추가하고 바로 선택한다 (설정 탭 카메라 값 사용)."""
+        self.btn_capture.setEnabled(False)
+        try:
+            with busy_cursor():
+                frame, cam = capture_frame()
+            name = new_capture_name()
+            png_path = save_intensity_png(frame.intensity, name)
+        except Exception as exc:  # noqa: BLE001
+            self._log(f"카메라 촬영 실패: {exc}")
+            QMessageBox.critical(self, "촬영 오류", str(exc))
+            return
+        finally:
+            self.btn_capture.setEnabled(True)
+
+        self._captures[name] = {
+            "image_path": png_path,
+            "pcd": np.asarray(frame.points_organized, dtype=np.float32),
+            "valid": np.asarray(frame.valid_mask, dtype=bool),
+        }
+        self._frame_names.append(name)
+        self.frame_list.addItem(QListWidgetItem(f"[촬영] {name}"))
+        self.frame_count_label.setText(f"프레임 목록 ({len(self._frame_names)}장)")
+        valid_ratio = 100.0 * float(frame.valid_mask.sum()) / frame.valid_mask.size
+        self._log(f"카메라 촬영 완료: {name} ({cam.camera_type}, 평균화 {cam.num_frames}프레임, "
+                  f"유효 픽셀 {valid_ratio:.1f}%)")
+        self.frame_list.setCurrentRow(self.frame_list.count() - 1)   # -> _on_frame_row_changed 로 미리보기
 
     def _reset_frame_state(self) -> None:
         self._current_frame = None
@@ -682,13 +679,14 @@ class ICPDetectionTestTab(QWidget):
     def _run_detection(self) -> bool:
         """검출(+형상 보정) 실행. 검출이 1건 이상이면 True."""
         if not self._image_path:
-            QMessageBox.warning(self, "알림", "먼저 세션을 선택하고 프레임을 고르세요.")
+            QMessageBox.warning(self, "알림", "먼저 세션을 선택하고 프레임을 고르거나, 카메라로 촬영하세요.")
             return False
-        checkpoint = self.checkpoint_edit.text().strip()
-        config = self.config_edit.text().strip()
-        if not checkpoint or not config:
-            QMessageBox.warning(self, "알림", "체크포인트와 config를 모두 지정하세요.")
+        paths = load_settings_paths()   # 체크포인트 / config는 '12. 설정' 탭 저장값
+        problem = paths.problem()
+        if problem:
+            QMessageBox.warning(self, "설정 필요", problem)
             return False
+        checkpoint, config = str(paths.checkpoint), str(paths.config)
 
         threshold = self.thresh_slider.value() / 100.0
         roi = self._current_roi()
@@ -745,12 +743,13 @@ class ICPDetectionTestTab(QWidget):
         if not self._refine_enabled() or not detections:
             return detections, []
         try:
-            cad_index = self.cad_combo.currentIndex()
-            if cad_index < 0:
-                raise ValueError("형상 보정에 쓸 CAD 모델을 선택하세요 (좌측 'CAD 모델').")
+            paths = load_settings_paths()   # CAD는 '12. 설정' 탭 저장값
+            problem = paths.problem(need_detector=False, need_cad=True)
+            if problem:
+                raise ValueError(problem)
             if self._pcd is None or self._valid is None:
                 raise ValueError("이 프레임에 점군/유효마스크가 없습니다.")
-            bank = get_bank(self.cad_combo.itemData(cad_index))
+            bank = get_bank(str(paths.cad))
             intr = estimate_intrinsics_from_organized_pcd(self._pcd, self._valid)
             params = dataclasses.replace(
                 RefineParams(),
@@ -815,12 +814,13 @@ class ICPDetectionTestTab(QWidget):
         if self._pcd is None or self._valid is None:
             QMessageBox.warning(self, "알림", "이 프레임에 점군/유효마스크가 없습니다.")
             return
-        cad_index = self.cad_combo.currentIndex()
-        if cad_index < 0:
-            QMessageBox.warning(self, "알림", "CAD 모델을 선택하세요 (data/cad/ 폴더가 비어있지 않은지 확인).")
+        paths = load_settings_paths()   # CAD는 '12. 설정' 탭 저장값
+        problem = paths.problem(need_detector=False, need_cad=True)
+        if problem:
+            QMessageBox.warning(self, "설정 필요", problem)
             return
 
-        cad_path = self.cad_combo.itemData(cad_index)
+        cad_path = str(paths.cad)
         params = self._collect_params()
         try:
             self._ensure_cad_loaded(cad_path, params)  # CAD 준비

@@ -105,6 +105,7 @@ class TcpSettings:
     host: str = "0.0.0.0"
     port: int = 5000                # 5번 탭 (ICP 기반) 서버 포트
     port_2d: int = 5001             # 5-2 탭 (2D 기반) 서버 포트 - 5번과 동시에 켤 수 있게 다르게 둔다
+    port_gripper: int = 5002        # 13번 탭 (그리퍼 동작 테스트) 서버 포트 - 클릭한 좌표를 돌려준다
     # 요청 명령 (대소문자 무시)
     trigger_cmd: str = "PICK"
     ping_cmd: str = "PING"

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QTreeWidget,
-    QTreeWidgetItem, QStackedWidget, QLabel, QMessageBox,
+    QTreeWidgetItem, QStackedWidget, QLabel, QMessageBox, QScrollArea, QFrame,
 )
 from PyQt6.QtCore import Qt
 
@@ -31,6 +31,7 @@ from app.tabs.live_label_generation_tab import LiveLabelGenerationTab
 from app.tabs.rothead_only_icp_tab import RotHeadOnlyICPTab
 from app.tabs.foundationpose_only_icp_tab import FoundationPoseOnlyICPTab
 from app.tabs.pvnet_label_generation_tab import PVNetLabelGenerationTab
+from app.tabs.gripper_test_tab import GripperTestTab
 from app.tabs.settings_tab import SettingsTab
 from app.tabs.tcp_server_tab import TcpServerTab
 from app.tabs.manual_labeling_tab import ManualLabelingTab
@@ -40,6 +41,10 @@ from app.tabs.autolabel_tab import AutoLabelTab
 
 # 트리 아이템에 스택 페이지 인덱스를 저장할 때 쓰는 데이터 role.
 PAGE_INDEX_ROLE = Qt.ItemDataRole.UserRole
+
+
+# 이보다 최소 높이가 큰 페이지는 스크롤 영역으로 감싼다 (기본 창 높이 780 - 상단바/로그 여백 기준)
+PAGE_SCROLL_MIN_HEIGHT = 600
 
 
 class CurrentPageStackedWidget(QStackedWidget):
@@ -161,6 +166,10 @@ class MainWindow(QMainWindow):
         self.settings_tab = SettingsTab()
         self._add_leaf("12. 설정", self.settings_tab)
 
+        # 13번: 촬영 이미지에서 클릭한 점군 좌표를 로봇 요청에 응답 (그리퍼가 원하는 좌표로 가는지 확인용)
+        self.gripper_tab = GripperTestTab()
+        self._add_leaf("13. 그리퍼 동작 테스트", self.gripper_tab)
+
         self.nav_tree.currentItemChanged.connect(self._on_nav_changed)
 
         self.log_console = LogConsole()
@@ -184,6 +193,7 @@ class MainWindow(QMainWindow):
         self.pvnet_label_gen_tab.log_message.connect(self.log_console.append_log)
         self.autolabel_tab.log_message.connect(self.log_console.append_log)
         self.settings_tab.log_message.connect(self.log_console.append_log)
+        self.gripper_tab.log_message.connect(self.log_console.append_log)
 
         # 데이터 수집 탭에서 수집이 끝나면 -> RTMDet 학습 탭 / ICP 탭(세션 기반)에 바로 연동.
         # LiveCaptureICPTab(탭5)은 세션이 아니라 카메라로 즉시 촬영하는 개념이라
@@ -202,7 +212,16 @@ class MainWindow(QMainWindow):
 
     def _add_leaf(self, label: str, page: QWidget, parent_item: QTreeWidgetItem | None = None) -> None:
         """스택에 페이지를 추가하고, 그 인덱스를 담은 트리 leaf 항목을 만든다."""
-        page_index = self.stack.addWidget(page)
+        # 최소 높이가 큰 페이지(11번 등)는 그대로 넣으면 그 탭을 여는 순간 창이 모니터보다
+        # 커지고, 다른 탭으로 돌아갈 때 창 크기/위치가 다시 잡히며 다른 모니터로 튄다.
+        # 스크롤 영역에 넣어 창 크기가 탭 내용에 끌려가지 않게 한다.
+        host = page
+        if page.minimumSizeHint().height() > PAGE_SCROLL_MIN_HEIGHT:
+            host = QScrollArea()
+            host.setWidgetResizable(True)
+            host.setFrameShape(QFrame.Shape.NoFrame)
+            host.setWidget(page)
+        page_index = self.stack.addWidget(host)
         item = QTreeWidgetItem([label])
         item.setData(0, PAGE_INDEX_ROLE, page_index)
         if parent_item is not None:
@@ -242,6 +261,7 @@ class MainWindow(QMainWindow):
                 return
         self.tcp_tab.shutdown()   # TCP 서버 정지 + 켜둔 카메라 해제
         self.tcp2d_tab.shutdown()
+        self.gripper_tab.shutdown()
         super().closeEvent(event)
 
     def _on_nav_changed(self, current: QTreeWidgetItem | None, previous: QTreeWidgetItem | None) -> None:

@@ -5,6 +5,11 @@
 
 이미지는 한 장씩 파일 다이얼로그로 불러오는 대신, 폴더를 지정하면 그 안의
 이미지들을 목록으로 펼쳐두고 목록에서 골라 미리보기 -> 추론 실행하는 방식.
+[카메라로 촬영]으로 바로 찍은 프레임도 같은 목록에 추가돼 똑같이 추론/형상 보정할 수 있다
+(촬영본은 점군을 메모리에 같이 보관하므로 세션 폴더 없이도 형상 보정이 된다).
+
+체크포인트 / config / CAD 경로와 카메라 값은 이 탭에서 입력하지 않고 '12. 설정' 탭에
+저장된 값을 쓴다 (app/core/detect_test_common.py).
 """
 from __future__ import annotations
 
@@ -19,16 +24,17 @@ from PyQt6.QtWidgets import (
     QCheckBox, QDoubleSpinBox, QSpinBox,
 )
 
+from app.core.app_settings import get_settings
 from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd
+from app.core.detect_test_common import (
+    busy_cursor, capture_frame, load_settings_paths, new_capture_name, save_intensity_png, summary_text,
+)
 from app.core.detector import Detector, Detection
-from app.core.config_patcher import find_latest_best_checkpoint
-from app.core.paths import DEFAULT_CONFIG_PATH, DEFAULT_CAD_DIR
 from app.widgets.image_viewer import ImageViewer
 from src.detection.mask_refine import RefineParams, RefineResult, get_bank, load_session_arrays, refine_masks
 
 DEFAULT_SCORE_THRESHOLD = 0.3  # 실제 파이프라인 스크립트의 SCORE_THRESHOLD와 동일
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp"}
-CAD_EXTS = {".stl", ".ply", ".obj"}
 DEFAULT_BOX_OPACITY = 50  # % - 박스가 물체를 가리지 않게 기본은 반투명
 
 
@@ -45,9 +51,11 @@ class InferenceTestTab(QWidget):
         # 형상 보정 결과 (_last_detections와 index 일치). 보정 전이면 빈 리스트.
         self._refined_detections: list[Detection] = []
         self._refine_results: list[RefineResult] = []
+        # 카메라 촬영본: 임시 PNG 경로 -> (표시 이름, 점군 (H,W,3) mm, 유효마스크). 이번 실행 중 메모리에만 보관.
+        self._captures: dict[str, tuple[str, np.ndarray, np.ndarray]] = {}
         self._build_ui()
-        self._prefill_latest_checkpoint()
-        self._prefill_cad()
+        self._refresh_settings_label()
+        get_settings().changed.connect(self._refresh_settings_label)   # 설정 탭에서 저장하면 안내 문구 갱신
 
     def _build_ui(self) -> None:
         root = QHBoxLayout(self)
@@ -69,6 +77,15 @@ class InferenceTestTab(QWidget):
         folder_row.addWidget(btn_browse_folder)
         left.addLayout(folder_row)
 
+        self.btn_capture = QPushButton("카메라로 촬영")
+        self.btn_capture.setToolTip(
+            "'12. 설정' 탭 > '카메라'의 값(카메라 타입, 평균화 프레임 수)으로 한 장 촬영해 아래 목록에 추가합니다.\n"
+            "점군도 함께 보관하므로 형상 보정도 쓸 수 있습니다 (이번 실행 중 메모리에만 보관).\n"
+            "촬영하는 동안 화면이 잠깐 멈춥니다 (평균화 프레임이 많을수록 길어짐)."
+        )
+        self.btn_capture.clicked.connect(lambda _=False: self._on_capture())
+        left.addWidget(self.btn_capture)
+
         self.image_count_label = QLabel("이미지 목록 (0장)")
         self.image_count_label.setStyleSheet("color: #666; font-size: 11px; margin-top: 6px;")
         left.addWidget(self.image_count_label)
@@ -82,24 +99,10 @@ class InferenceTestTab(QWidget):
         # ------------------------------------------------------- 중앙: 설정 + 미리보기
         center = QVBoxLayout()
 
-        path_row = QHBoxLayout()
-        path_row.addWidget(QLabel("체크포인트"))
-        self.checkpoint_edit = QLineEdit()
-        path_row.addWidget(self.checkpoint_edit, stretch=1)
-        btn_browse_ckpt = QPushButton("선택")
-        btn_browse_ckpt.clicked.connect(self._on_browse_checkpoint)
-        path_row.addWidget(btn_browse_ckpt)
-        center.addLayout(path_row)
-
-        cfg_row = QHBoxLayout()
-        cfg_row.addWidget(QLabel("config"))
-        self.config_edit = QLineEdit()
-        self.config_edit.setPlaceholderText("보통 체크포인트와 같은 work_dir 안의 .py 파일")
-        cfg_row.addWidget(self.config_edit, stretch=1)
-        btn_browse_cfg = QPushButton("선택")
-        btn_browse_cfg.clicked.connect(self._on_browse_config)
-        cfg_row.addWidget(btn_browse_cfg)
-        center.addLayout(cfg_row)
+        # 체크포인트 / config / CAD는 '12. 설정' 탭 저장값을 쓴다 - 지금 무엇이 쓰이는지만 보여준다.
+        self.settings_label = QLabel("")
+        self.settings_label.setStyleSheet("color: #888; font-size: 11px;")
+        center.addWidget(self.settings_label)
 
         run_row = QHBoxLayout()
         self.btn_run = QPushButton("추론 실행")
@@ -139,19 +142,10 @@ class InferenceTestTab(QWidget):
         self.chk_refine = QCheckBox("형상 보정 (CAD 투영 템플릿 + 깊이)")
         self.chk_refine.setToolTip(
             "추론 직후 마스크를 볼트 투영 실루엣에 맞춰 다듬는다.\n"
-            "세션 폴더 구조(<세션>/intensity/*.png + pointcloud_organized + valid_mask)가 필요하다."
+            "세션 폴더 구조(<세션>/intensity/*.png + pointcloud_organized + valid_mask)의 이미지이거나,\n"
+            "[카메라로 촬영]한 프레임이어야 한다. CAD는 '12. 설정' 탭의 CAD 모델을 쓴다."
         )
         center.addWidget(self.chk_refine)
-
-        cad_row = QHBoxLayout()
-        cad_row.addWidget(QLabel("CAD"))
-        self.cad_edit = QLineEdit()
-        self.cad_edit.setPlaceholderText("볼트 CAD 파일 (.stl/.ply/.obj) - 단위 m 또는 mm 자동 판별")
-        cad_row.addWidget(self.cad_edit, stretch=1)
-        btn_browse_cad = QPushButton("선택")
-        btn_browse_cad.clicked.connect(self._on_browse_cad)
-        cad_row.addWidget(btn_browse_cad)
-        center.addLayout(cad_row)
 
         param_row = QHBoxLayout()
         param_row.addWidget(QLabel("깊이 허용(mm)"))
@@ -274,54 +268,42 @@ class InferenceTestTab(QWidget):
 
         root.addLayout(right, stretch=1)
 
-    def _prefill_latest_checkpoint(self) -> None:
-        """탭이 열릴 때, 기본 config의 work_dir에서 가장 최근 best 체크포인트를 자동으로 채운다."""
-        if not DEFAULT_CONFIG_PATH.is_file():
-            return
-        cfg_path = str(DEFAULT_CONFIG_PATH)
-        self.config_edit.setText(cfg_path)
-
-        best = find_latest_best_checkpoint(cfg_path)
-        if best:
-            self.checkpoint_edit.setText(best)
-            self.log_message.emit(f"최신 best 체크포인트 자동 설정: {best}")
-        else:
-            self.log_message.emit(
-                "work_dir에 best 체크포인트가 아직 없어 자동 설정을 건너뜁니다. "
-                "직접 선택해주세요."
-            )
-
-    def _prefill_cad(self) -> None:
-        """data/cad 안에 'bolt'가 들어간 CAD가 정확히 하나면 자동으로 채운다."""
-        try:
-            if not DEFAULT_CAD_DIR.is_dir():
-                return
-            cands = [f for f in DEFAULT_CAD_DIR.iterdir()
-                     if f.suffix.lower() in CAD_EXTS and "bolt" in f.name.lower()]
-            if len(cands) == 1:
-                self.cad_edit.setText(str(cands[0]))
-        except OSError:
-            pass
+    def _refresh_settings_label(self) -> None:
+        """'12. 설정' 탭의 체크포인트 / config / CAD가 지금 무엇인지 보여준다 (문제가 있으면 빨갛게)."""
+        text, tooltip, ok = summary_text(load_settings_paths(), need_cad=False)
+        self.settings_label.setText(text)
+        self.settings_label.setToolTip(tooltip)
+        self.settings_label.setStyleSheet(
+            "color: #888; font-size: 11px;" if ok else "color: #c0392b; font-size: 11px;")
 
     # ----------------------------------------------------------- actions
-    def _on_browse_checkpoint(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "체크포인트 선택", "", "PyTorch (*.pth)")
-        if not path:
+    def _on_capture(self) -> None:
+        """카메라로 한 장 촬영해 목록에 추가하고 바로 선택한다 (설정 탭 카메라 값 사용)."""
+        self.btn_capture.setEnabled(False)
+        try:
+            with busy_cursor():
+                frame, cam = capture_frame()
+            name = new_capture_name()
+            png_path = save_intensity_png(frame.intensity, name)
+        except Exception as exc:  # noqa: BLE001
+            self.log_message.emit(f"카메라 촬영 실패: {exc}")
+            QMessageBox.critical(self, "촬영 오류", str(exc))
             return
-        self.checkpoint_edit.setText(path)
-        self.log_message.emit(f"체크포인트 설정: {path}")
+        finally:
+            self.btn_capture.setEnabled(True)
 
-        # 체크포인트와 같은 폴더에 config .py가 하나뿐이면 자동으로 제안
-        if not self.config_edit.text():
-            candidates = list(Path(path).parent.glob("*.py"))
-            if len(candidates) == 1:
-                self.config_edit.setText(str(candidates[0]))
-                self.log_message.emit(f"같은 폴더에서 config 자동 제안: {candidates[0]}")
-
-    def _on_browse_config(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "config 파일 선택", "", "Python (*.py)")
-        if path:
-            self.config_edit.setText(path)
+        self._captures[png_path] = (
+            name,
+            np.asarray(frame.points_organized, dtype=np.float32),
+            np.asarray(frame.valid_mask, dtype=bool),
+        )
+        self._image_paths.append(png_path)
+        self.image_list.addItem(QListWidgetItem(f"[촬영] {name}"))
+        self.image_count_label.setText(f"이미지 목록 ({len(self._image_paths)}장)")
+        valid_ratio = 100.0 * float(frame.valid_mask.sum()) / frame.valid_mask.size
+        self.log_message.emit(
+            f"카메라 촬영 완료: {name} ({cam.camera_type}, 평균화 {cam.num_frames}프레임, 유효 픽셀 {valid_ratio:.1f}%)")
+        self.image_list.setCurrentRow(self.image_list.count() - 1)   # -> _on_image_row_changed 로 미리보기
 
     def _on_browse_image_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "이미지 폴더 선택")
@@ -341,7 +323,10 @@ class InferenceTestTab(QWidget):
         self.image_list.clear()
         for f in files:
             self.image_list.addItem(QListWidgetItem(f.name))
-        self.image_count_label.setText(f"이미지 목록 ({len(files)}장)")
+        for png_path, (name, _pcd, _valid) in self._captures.items():   # 촬영본은 폴더를 바꿔도 목록에 유지
+            self._image_paths.append(png_path)
+            self.image_list.addItem(QListWidgetItem(f"[촬영] {name}"))
+        self.image_count_label.setText(f"이미지 목록 ({len(self._image_paths)}장)")
 
         self._image_path = None
         self._last_detections = []
@@ -370,19 +355,19 @@ class InferenceTestTab(QWidget):
 
     def _on_run_inference(self) -> None:
         if not self._image_path:
-            QMessageBox.warning(self, "알림", "먼저 이미지 폴더를 선택하고 목록에서 이미지를 고르세요.")
+            QMessageBox.warning(self, "알림", "먼저 이미지 폴더를 선택하거나 카메라로 촬영한 뒤 목록에서 고르세요.")
             return
-        checkpoint = self.checkpoint_edit.text().strip()
-        config = self.config_edit.text().strip()
-        if not checkpoint or not config:
-            QMessageBox.warning(self, "알림", "체크포인트와 config를 모두 지정하세요.")
+        paths = load_settings_paths()   # 체크포인트 / config는 '12. 설정' 탭 저장값
+        problem = paths.problem()
+        if problem:
+            QMessageBox.warning(self, "설정 필요", problem)
             return
 
         threshold = self.thresh_slider.value() / 100.0
 
         detector = Detector(
-            checkpoint_path=checkpoint,
-            config_path=config,
+            checkpoint_path=str(paths.checkpoint),
+            config_path=str(paths.config),
             score_threshold=threshold,
         )
         try:
@@ -486,14 +471,10 @@ class InferenceTestTab(QWidget):
         if hasattr(self, "refine_status"):
             self.refine_status.setText("")
 
-    def _on_browse_cad(self) -> None:
-        start = str(DEFAULT_CAD_DIR) if DEFAULT_CAD_DIR.is_dir() else ""
-        path, _ = QFileDialog.getOpenFileName(self, "볼트 CAD 선택", start, "CAD (*.stl *.ply *.obj)")
-        if path:
-            self.cad_edit.setText(path)
-            self.log_message.emit(f"CAD 설정: {path}")
-
     def _load_session_arrays(self, image_path: str):
+        cap = self._captures.get(image_path)
+        if cap is not None:
+            return cap[1], cap[2]   # 카메라 촬영본: 점군/유효마스크를 메모리에 가지고 있다
         return load_session_arrays(image_path)  # 세션 구조가 아니면 ValueError
 
     def _on_apply_refine(self) -> None:
@@ -505,9 +486,11 @@ class InferenceTestTab(QWidget):
     def _apply_refine(self) -> None:
         """_last_detections(원본)에 보정을 적용해 _refined_detections / _refine_results를 채운다."""
         try:
-            cad = self.cad_edit.text().strip()
-            if not cad or not Path(cad).is_file():
-                raise ValueError("볼트 CAD 파일을 지정하세요 (.stl/.ply/.obj).")
+            paths = load_settings_paths()   # CAD는 '12. 설정' 탭 저장값
+            problem = paths.problem(need_detector=False, need_cad=True)
+            if problem:
+                raise ValueError(problem)
+            cad = str(paths.cad)
             if not self._image_path:
                 raise ValueError("이미지가 선택되지 않았습니다.")
 

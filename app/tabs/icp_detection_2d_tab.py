@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import QCheckBox, QFrame, QLabel, QMessageBox, QPushButton,
 
 from app.core import pose_from_template
 from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd, project_points
+from app.core.detect_test_common import load_settings_paths
 from app.core.icp_runner import ICPResult
 from app.core.pose_from_template import Pose2D
 from app.tabs.icp_detection_test_tab import ICPDetectionTestTab, _guarded
@@ -29,6 +30,7 @@ class ICPDetection2DTab(ICPDetectionTestTab):
     LOG_PREFIX = "ICP 2D 기반 탭"
 
     _pick2d: list = []          # 인스턴스별 Pose2D (검출 index와 일치)
+    _pick2d_pcd: list = []      # 같은 검출을 점군 직접 읽기 방식으로 계산한 Pose2D (기존 방식과의 비교용)
     _bank = None
     _intr = None
     _axis_deg = (0.0, 0.0, 0.0)
@@ -36,6 +38,7 @@ class ICPDetection2DTab(ICPDetectionTestTab):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._pick2d = []
+        self._pick2d_pcd = []
         self.btn_run_all.setText("검출 + 2D 계산 + ICP 비교")
         self.btn_run_all.setToolTip("2D 검출 + 형상 보정 -> 2D 기반 픽 포인트 -> ICP 정합 -> 결과 비교")
         self.btn_run_2d = QPushButton("검출 + 2D 기반 계산 (ICP 없이)")
@@ -56,10 +59,12 @@ class ICPDetection2DTab(ICPDetectionTestTab):
     # ------------------------------------------------------------------
     def _clear_detection_state(self) -> None:
         self._pick2d = []
+        self._pick2d_pcd = []
         super()._clear_detection_state()
 
     def _apply_refine_and_show(self) -> None:
         self._pick2d = []
+        self._pick2d_pcd = []
         super()._apply_refine_and_show()
 
     # ------------------------------------------------------------------
@@ -87,13 +92,14 @@ class ICPDetection2DTab(ICPDetectionTestTab):
             if not quiet:
                 QMessageBox.warning(self, "알림", "2D 기반 계산은 형상 보정이 켜져 있어야 합니다 (CAD 템플릿이 필요).")
             return
-        cad_index = self.cad_combo.currentIndex()
-        if cad_index < 0 or self._pcd is None or self._valid is None:
+        paths = load_settings_paths()   # CAD는 '12. 설정' 탭 저장값
+        problem = paths.problem(need_detector=False, need_cad=True)
+        if problem or self._pcd is None or self._valid is None:
             if not quiet:
-                QMessageBox.warning(self, "알림", "CAD 모델과 점군이 필요합니다.")
+                QMessageBox.warning(self, "알림", problem or "이 프레임에 점군/유효마스크가 없습니다.")
             return
 
-        cad_path = self.cad_combo.itemData(cad_index)
+        cad_path = str(paths.cad)
         params = self._collect_params()
         bank = get_bank(cad_path)
         intr = estimate_intrinsics_from_organized_pcd(self._pcd, self._valid)
@@ -124,6 +130,29 @@ class ICPDetection2DTab(ICPDetectionTestTab):
                 self._log(f"  obj{i} 2D 기반 불가: {p.error}")
         self._log(f"2D 기반 계산 완료: 성공 {sum(p.ok for p in self._pick2d)}/{len(self._pick2d)}"
                   f" (깊이 보정 {'ON' if depth_correct else 'OFF'})")
+
+        # 같은 검출을 '점군 직접 읽기' 방식으로도 계산해 기존(평면 + 핀홀 역투영) 방식과의 차이를 mm로 본다.
+        # 회전/깊이 보정은 같고 위치(X,Y,Z)를 얻는 방법만 다르다 (app/core/pose_from_template.py).
+        self._pick2d_pcd = []
+        diffs: list[dict] = []
+        for i, rr in enumerate(self._refine_results):
+            q = pose_from_template.pose_from_refine_pcd(
+                rr, bank, intr, self._pcd, self._valid, cad_axis_deg=self._axis_deg,
+                cad_center_mm=cad_center_mm, depth_correct=depth_correct)
+            self._pick2d_pcd.append(q)
+            if not q.ok:
+                self._log(f"  obj{i} pcd 직접 읽기 불가: {q.error}")
+                continue
+            c = pose_from_template.compare_methods(self._pick2d[i], q, rr.center_uv, intr, self._pcd.shape)
+            if c is None:   # 기존 방식이 실패한 인스턴스는 비교할 대상이 없다
+                continue
+            diffs.append(c)
+            self._log(f"  obj{i} pcd 직접 읽기 [{q.source}] 기존 대비 Δ(X,Y,Z)=({c['dx']:+.2f}, {c['dy']:+.2f}, "
+                      f"{c['dz']:+.2f}) mm  |Δ| 3D {c['d3_mm']:.2f} / XY {c['dxy_mm']:.2f} mm  "
+                      f"(화면 중심에서 {c['r_px']:.0f}px, {c['r_pct']:.0f}%)")
+        if diffs:
+            d3 = [c["d3_mm"] for c in diffs]
+            self._log(f"기존 vs pcd 직접 읽기: {len(diffs)}건, 3D 차이 평균 {sum(d3) / len(d3):.2f} / 최대 {max(d3):.2f} mm")
 
         # 화면 갱신 (이미 ICP 결과가 있으면 같이 다시 그린다)
         self._render_result_panel(self._icp_results)
@@ -195,4 +224,27 @@ class ICPDetection2DTab(ICPDetectionTestTab):
                         flip = QLabel("⚠ 축 방향이 반대 (머리/꼬리)")
                         flip.setStyleSheet("color: #c0392b; font-size: 10px;")
                         lay.addWidget(flip)
+                self._add_pcd_compare_label(lay, i, p)
             self.result_layout.insertWidget(self.result_layout.count() - 1, card)
+
+    def _add_pcd_compare_label(self, lay, i: int, base) -> None:
+        """2D 기반 카드에 '점군 직접 읽기' 방식의 pick 좌표와 기존 방식 대비 차이(mm)를 덧붙인다."""
+        q = self._pick2d_pcd[i] if i < len(self._pick2d_pcd) else None
+        if q is None or self._pcd is None or self._intr is None:
+            return
+        if not q.ok:
+            text, color = f"pcd 직접 읽기 불가: {q.error}", "#c0392b"
+        else:
+            c = pose_from_template.compare_methods(
+                base, q, self._refine_results[i].center_uv, self._intr, self._pcd.shape)
+            pos = q.pick_point_mm
+            text = (f"pcd 직접 읽기 [{q.source}]\n"
+                    f"pick X{pos[0]:+.1f} Y{pos[1]:+.1f} Z{pos[2]:+.1f} mm\n"
+                    f"기존 대비 ΔX{c['dx']:+.2f} ΔY{c['dy']:+.2f} ΔZ{c['dz']:+.2f} mm\n"
+                    f"|Δ| 3D {c['d3_mm']:.2f} / XY {c['dxy_mm']:.2f} mm\n"
+                    f"표면 Z 차이 {c['dz_surf_mm']:+.2f} mm · 화면 중심에서 {c['r_px']:.0f}px ({c['r_pct']:.0f}%)")
+            color = "#555"
+        label = QLabel(text)
+        label.setStyleSheet(f"color: {color}; font-size: 10px;")
+        label.setWordWrap(True)
+        lay.addWidget(label)

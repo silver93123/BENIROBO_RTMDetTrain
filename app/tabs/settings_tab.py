@@ -659,6 +659,10 @@ class SettingsTab(QWidget):
         port2d.setToolTip("5-2 탭(2D 기반 TCP 서버)이 쓰는 포트. 5번 서버와 동시에 켜려면 다르게 둡니다.")
         cf.addRow("포트 (5-2 탭: 2D 기반)", port2d)
         self._bind(PAGE_TCP, "tcp", "port_2d", port2d)
+        port_grip = self._spin(1, 65535, 1, 0)
+        port_grip.setToolTip("13번 탭(그리퍼 동작 테스트)이 쓰는 포트. 다른 서버와 동시에 켜려면 다르게 둡니다.")
+        cf.addRow("포트 (13번 탭: 그리퍼 테스트)", port_grip)
+        self._bind(PAGE_TCP, "tcp", "port_gripper", port_grip)
         cf.addRow(self._hint("호스트/포트는 서버를 다시 시작해야 적용됩니다."))
         outer.addWidget(conn)
 

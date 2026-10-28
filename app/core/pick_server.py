@@ -270,9 +270,10 @@ class PickServer(QObject):
     log_message = pyqtSignal(str)
 
     def __init__(self, store: SettingsStore, worker: PickWorker, parent: QObject | None = None,
-                 use_port_2d: bool = False):
+                 use_port_2d: bool = False, port_field: str | None = None):
         super().__init__(parent)
         self._use_port_2d = use_port_2d   # True면 설정의 port_2d (5-2 탭), 아니면 port (5번 탭)
+        self._port_field = port_field     # 지정하면 TcpSettings의 그 필드를 포트로 쓴다 (예: 13번 탭 "port_gripper")
         self._store = store
         self._worker = worker
         self._sock: socket.socket | None = None
@@ -288,6 +289,8 @@ class PickServer(QObject):
 
     def port(self) -> int:
         tcp = self._store.snapshot().tcp
+        if self._port_field:
+            return int(getattr(tcp, self._port_field))
         return int(tcp.port_2d if self._use_port_2d else tcp.port)
 
     def start(self) -> None:

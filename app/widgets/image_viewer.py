@@ -46,6 +46,8 @@ def make_label_opacity_bar(viewer: "ImageViewer", initial_percent: int = 70) -> 
 class ImageViewer(QLabel):
     #: 사용자가 마우스로 ROI를 그리면 (x1, y1, x2, y2) 이미지 좌표(x2/y2 미포함)로 알린다.
     roi_changed = pyqtSignal(int, int, int, int)
+    #: 클릭 선택 모드(set_click_pick)에서 이미지 위를 왼쪽 클릭하면 이미지 좌표 (x, y)를 알린다.
+    point_clicked = pyqtSignal(float, float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -60,6 +62,7 @@ class ImageViewer(QLabel):
         self._box_opacity = 1.0  # 0~1, bbox 테두리/라벨 불투명도 (기본 1 = 기존 동작)
         self._roi: tuple[int, int, int, int] | None = None  # 표시할 ROI (이미지 좌표)
         self._roi_drawing = False        # True면 마우스 드래그로 ROI를 그릴 수 있다
+        self._click_pick = False         # True면 왼쪽 클릭 한 점을 point_clicked로 알린다
         self._roi_drag_start: tuple[float, float] | None = None
         self._roi_before_drag: tuple[int, int, int, int] | None = None
         self.setText("이미지를 불러오세요")
@@ -102,8 +105,13 @@ class ImageViewer(QLabel):
         self._roi_drag_start = None
         self.setCursor(Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.ArrowCursor)
 
-    def _widget_to_image(self, pos) -> tuple[float, float] | None:
-        """위젯 좌표 -> 이미지 좌표. 표시된 이미지 밖이면 가장자리로 clamp."""
+    def set_click_pick(self, enabled: bool) -> None:
+        """True면 이미지 위 왼쪽 클릭을 point_clicked(x, y)로 알린다 (이미지 밖 클릭은 무시)."""
+        self._click_pick = bool(enabled)
+        self.setCursor(Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.ArrowCursor)
+
+    def _widget_to_image(self, pos, clamp: bool = True) -> tuple[float, float] | None:
+        """위젯 좌표 -> 이미지 좌표. clamp=True면 표시된 이미지 밖은 가장자리로 clamp, False면 None."""
         pm = self.pixmap()
         size = self.image_size()
         if pm is None or pm.isNull() or size is None:
@@ -115,9 +123,16 @@ class ImageViewer(QLabel):
         off_y = (self.height() - ph) / 2.0
         x = (pos.x() - off_x) * size[0] / pw
         y = (pos.y() - off_y) * size[1] / ph
+        if not clamp and not (0.0 <= x < size[0] and 0.0 <= y < size[1]):
+            return None
         return min(max(x, 0.0), size[0]), min(max(y, 0.0), size[1])
 
     def mousePressEvent(self, event) -> None:
+        if self._click_pick and event.button() == Qt.MouseButton.LeftButton:
+            p = self._widget_to_image(event.position(), clamp=False)
+            if p is not None:
+                self.point_clicked.emit(p[0], p[1])
+            return
         if self._roi_drawing and event.button() == Qt.MouseButton.LeftButton:
             p = self._widget_to_image(event.position())
             if p is not None:
