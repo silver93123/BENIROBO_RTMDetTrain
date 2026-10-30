@@ -140,7 +140,9 @@ def solve(pairs: list[CalibPair]) -> RigidFit:
 # 저장 / 불러오기
 # =============================================================================
 def save_calibration(path: Path, pairs: list[CalibPair], fit: RigidFit | None, pose_memo: str,
-                     rms_limit_mm: float = DEFAULT_RMS_LIMIT_MM) -> None:
+                     rms_limit_mm: float = DEFAULT_RMS_LIMIT_MM, source: str = "pairs") -> None:
+    """source: "pairs" = 점 짝으로 푼 변환 (기본), "manual" = 13번 탭 '행렬 직접 입력'으로 적용한 변환
+    (다시 열 때 점 짝으로 다시 풀지 않고 저장된 R, t를 그대로 쓴다)."""
     data = {
         "version": 1,
         "pose_memo": pose_memo,
@@ -148,12 +150,48 @@ def save_calibration(path: Path, pairs: list[CalibPair], fit: RigidFit | None, p
         "pairs": [{"cam": list(p.cam), "robot": list(p.robot) if p.robot is not None else None, "use": p.use} for p in pairs],
         "transform": None if fit is None else {
             "R": fit.R.tolist(), "t": fit.t.tolist(), "rms_mm": fit.rms_mm, "max_mm": fit.max_mm,
-            "loo_rms_mm": fit.loo_rms_mm, "n_used": fit.n_used},
+            "loo_rms_mm": fit.loo_rms_mm, "n_used": fit.n_used, "source": source},
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(path)
+
+
+def save_manual_transform(path: Path, R, t, pose_memo: str | None = None,
+                          rms_limit_mm: float = DEFAULT_RMS_LIMIT_MM) -> Path | None:
+    """'행렬 직접 입력'으로 정한 변환(source=manual)을 저장 파일에 기록한다. 점 짝/메모/한계는 파일에 있던 그대로 둔다.
+
+    기존 파일의 변환이 점 짝으로 푼 것(manual이 아님)이면 덮어쓰기 전에 같은 폴더에 백업해 두고 그 경로를 돌려준다.
+    (이미 수동 입력 행렬이거나 기존 파일이 없으면 None). 4-1 / 5-2 탭은 파일 수정시각이 바뀌면 다음 요청부터 이 변환을 쓴다.
+    """
+    import shutil
+    from datetime import datetime
+    path = Path(path)
+    raw: dict = {}
+    backup: Path | None = None
+    if path.is_file():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raw = {}
+        old = raw.get("transform") if isinstance(raw, dict) else None
+        if old and old.get("source") != "manual":
+            backup = path.with_name(f"{path.stem}.bak-{datetime.now():%Y%m%d-%H%M%S}{path.suffix}")
+            shutil.copy2(path, backup)
+    if not isinstance(raw, dict):
+        raw = {}
+    raw.setdefault("version", 1)
+    raw.setdefault("pairs", [])
+    raw["pose_memo"] = raw.get("pose_memo", "") if pose_memo is None else pose_memo
+    raw.setdefault("rms_limit_mm", rms_limit_mm)
+    raw["transform"] = {"R": np.asarray(R, dtype=float).tolist(), "t": np.asarray(t, dtype=float).tolist(),
+                        "rms_mm": 0.0, "max_mm": 0.0, "loo_rms_mm": None, "n_used": 0, "source": "manual"}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
+    return backup
 
 
 def load_calibration(path: Path) -> tuple[list[CalibPair], dict | None, str, float]:
@@ -242,7 +280,9 @@ class SavedTransformOutput(OutputConfig):
                 fit = solve(pairs)
                 R, t, rms, n = fit.R, fit.t, fit.rms_mm, fit.n_used
             else:
-                R, t, rms, n = np.asarray(tf["R"], float), np.asarray(tf["t"], float), float(tf["rms_mm"]), int(tf.get("n_used", 0))
+                R, t, n = np.asarray(tf["R"], float), np.asarray(tf["t"], float), int(tf.get("n_used", 0))
+                # 13번 탭 '행렬 직접 입력'으로 적용한 변환(source=manual)은 점 짝과 무관해서 잔차 RMS 검사를 하지 않는다
+                rms = None if tf.get("source") == "manual" else float(tf["rms_mm"])
             if R.shape != (3, 3) or t.shape != (3,):
                 raise ValueError("변환 행렬 모양이 올바르지 않습니다")
             self._R, self._t, self._rms, self._limit, self._memo, self._n_used = R, t, rms, limit, memo, n
@@ -263,7 +303,19 @@ class SavedTransformOutput(OutputConfig):
             if self._rms is not None and self._rms > self._limit:
                 return "CALIB_BAD", f"변환 잔차 RMS {self._rms:.2f} mm 가 한계 {self._limit:.2f} mm 를 넘습니다"
             memo = f" · 촬영 자세: {self._memo}" if self._memo else ""
+            if self._rms is None:
+                return "", f"수동 입력 행렬 (잔차 검사 없음){memo}"
             return "", f"점 {self._n_used}개, 잔차 RMS {self._rms:.2f} mm{memo}"
+
+    def convert_rz_ry(self, axis_cam) -> tuple[float, float, bool] | None:
+        """카메라 좌표계의 볼트 긴 축 방향 -> 로봇 자세 (Rz, Ry [deg], 수직에 가까움). 변환을 쓸 수 없으면 None.
+        축은 회전 R만 적용한다 (이동 t는 방향에 무관). 자세 규약은 app/core/robot_pose.py (Rz -> Ry, Rx 미사용)."""
+        if self.check()[0]:
+            return None
+        from app.core.robot_pose import rz_ry_from_axis
+        with self._lock:
+            d = self._R @ np.asarray(axis_cam, dtype=float)
+        return rz_ry_from_axis(d)
 
     def convert(self, xyz) -> tuple[float, float, float] | None:
         """카메라 좌표 -> 로봇 좌표. 변환을 쓸 수 없으면 None."""

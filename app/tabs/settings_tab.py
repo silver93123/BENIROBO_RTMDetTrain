@@ -439,7 +439,7 @@ class SettingsTab(QWidget):
         outer.addWidget(box)
 
         # --- ROI ---
-        roi_box = QGroupBox("ROI 크롭 (영역 밖 물체는 검출하지 않음)")
+        roi_box = QGroupBox("ROI (픽점이 영역 밖이면 제외)")
         rl = QHBoxLayout(roi_box)
         chk = QCheckBox("ROI 사용")
         rl.addWidget(chk)
@@ -457,7 +457,8 @@ class SettingsTab(QWidget):
         rl.addStretch(1)
         outer.addWidget(roi_box)
         outer.addWidget(self._hint("ROI 좌표는 촬영 이미지의 픽셀 좌표입니다 (4번 탭에서 이미지 위를 드래그하면 값을 확인할 수 있음). "
-                                   "한 변이 16px 미만이면 무시하고 전체 이미지를 씁니다."))
+                                   "검출은 전체 이미지로 하고, 픽점을 산출한 뒤 픽점이 ROI 안에 있는 것만 후보로 남깁니다. "
+                                   "한 변이 16px 미만이면 무시하고 ROI를 쓰지 않습니다."))
 
         # --- 형상 보정 ---
         ref_box = QGroupBox("형상 보정 (CAD 투영 + 깊이로 마스크 정리)")
@@ -483,6 +484,12 @@ class SettingsTab(QWidget):
                       "중심까지의 거리(원통 근사)를 더해 CAD 중심 depth로 만듭니다. 끄면 표면 depth 그대로.")
         rg.addWidget(dc, 2, 4, 1, 2)
         self._bind(PAGE_DETECT, "refine", "depth_correct", dc)
+        pp = QCheckBox("2D 기반: 위치를 점군에서 직접 읽기")
+        pp.setToolTip("4-1 탭 / 5-2 서버에서 픽 포인트 X,Y,Z를 템플릿 중심 픽셀의 점군(렌즈 왜곡 보정 포함)에서 직접 읽습니다.\n"
+                      "13번 탭의 클릭 좌표와 같은 방식입니다. 끄면 평면 depth + 핀홀 역투영(근사 intrinsic)이라\n"
+                      "화면 가장자리에서 수~십수 mm 어긋날 수 있습니다. 창 안 유효 점이 부족하면 자동으로 평면 방식으로 되돌아갑니다.")
+        rg.addWidget(pp, 2, 6, 1, 2)   # 깊이 보정 옆 (같은 2D 기반 옵션 줄)
+        self._bind(PAGE_DETECT, "refine", "pos_from_pcd", pp)
         rg.setColumnStretch(6, 1)
 
         # 의심 마스크 제외 (3번 오프라인 검출 테스트 탭의 '의심 마스크 숨기기'와 같은 기준)
@@ -499,7 +506,10 @@ class SettingsTab(QWidget):
         for row, (field, label, hi, tip) in enumerate((
                 ("suspect_min_score", "score ≥", 1.5, "템플릿 적합 점수가 이 값 미만이면 제외"),
                 ("suspect_max_change", "변경률 ≤", 9.9, "변경률((추가+삭제)/원본 면적)이 이 값을 넘으면 제외. 원본이 많이 틀렸다는 뜻"),
-                ("suspect_min_det_in_tpl", "원본∩템플릿 ≥", 1.0, "원본 검출 중 CAD 투영 안에 있는 비율이 이 값 미만이면 제외")), start=4):
+                ("suspect_min_det_in_tpl", "원본∩템플릿 ≥", 1.0, "원본 검출 중 CAD 투영 안에 있는 비율이 이 값 미만이면 제외"),
+                ("suspect_max_occ_edge", "윤곽 가림 ≤", 1.0,
+                 "마스크 윤곽선 중 바로 바깥이 물체 평면보다 가까운(앞에서 가리는 다른 볼트) 비율이 이 값을 넘으면 제외.\n"
+                 "위 볼트에 잘려 끊긴 볼트를 거르는 용도. 1.00 = 사용 안 함. 3번 탭에서 카드의 '윤곽가림' 값을 보며 정하세요.")), start=4):
             rg.addWidget(QLabel(label), row, 0)
             sp = self._spin(0.0, hi, 0.05, 2)
             sp.setToolTip(tip)

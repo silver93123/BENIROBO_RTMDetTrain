@@ -16,7 +16,8 @@
     NG 코드: NO_DETECTION, NO_VALID_POSE, CAMERA_ERROR, CONFIG_ERROR, DETECTION_ERROR,
              REFINE_ERROR (2D 기반 전용), NO_CALIB / CALIB_BAD (로봇 좌표 변환 켠 경우), INTERNAL_ERROR, BUSY (이전 요청 처리 중), UNKNOWN_CMD, TIMEOUT
     단위: mm / deg. 기본은 카메라 좌표계. 5-2 탭의 '로봇 좌표로 변환'을 켜면 13번 탭에서 저장한 변환으로
-          X,Y,Z를 로봇 좌표로 바꿔 응답한다 (회전 roll/pitch/yaw는 변환하지 않고 카메라 기준 그대로).
+          X,Y,Z를 로봇 좌표로 바꾸고, 회전은 볼트 긴 축을 로봇 좌표로 바꾼 Rz -> Ry 로 보낸다
+          (필드 roll=Rx=0 고정, pitch=Ry, yaw=Rz. 툴 X축이 볼트 긴 축과 평행하다고 가정, 180도 대칭이라 Rz는 -90~90).
           변환이 없으면 NG,NO_CALIB / 잔차가 한계를 넘으면 NG,CALIB_BAD.
 
 요청 끝 문자는 \\n, \\r\\n, \\r 모두 받는다. 끝 문자 없이 "PICK"만 보내는 클라이언트도
@@ -46,6 +47,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from app.core.app_settings import CAMERA_CONFIG_PATHS, CameraSettings, SettingsStore, TcpSettings
 from app.core.pick_pipeline import PickCandidate, PickPipeline, PickRunResult, PipelineError
+from app.core.robot_pose import rz_ry_from_axis
 
 REQUEST_TIMEOUT_S = 120.0     # 한 요청의 파이프라인 최대 대기 시간
 MAX_PENDING_BYTES = 4096      # 끝 문자 없이 이만큼 쌓이면 쓰레기로 보고 버린다
@@ -151,7 +153,13 @@ def apply_output_frame(result: PickRunResult, output) -> PickRunResult:
     new = []
     for c in result.candidates:
         v = R @ np.asarray(c.xyz_mm, dtype=float) + t
-        new.append(dataclasses.replace(c, xyz_mm=(float(v[0]), float(v[1]), float(v[2]))))
+        kw = {}
+        if c.axis_cam is not None:
+            # 회전: 카메라 기준 R/P/Y 대신, 볼트 긴 축을 로봇 좌표로 바꿔 Rz -> Ry 로 만든다 (Rx 미사용 = 0).
+            # 응답 필드 순서(roll, pitch, yaw)에 맞춰 (Rx=0, Ry, Rz). 툴 X축이 볼트 긴 축과 평행하다고 가정 (app/core/robot_pose.py)
+            rz, ry, _vertical = rz_ry_from_axis(R @ np.asarray(c.axis_cam, dtype=float))
+            kw["rpy_deg"] = (0.0, float(ry), float(rz))
+        new.append(dataclasses.replace(c, xyz_mm=(float(v[0]), float(v[1]), float(v[2])), **kw))
     result.candidates = new
     result.coord_frame = "robot"
     return result

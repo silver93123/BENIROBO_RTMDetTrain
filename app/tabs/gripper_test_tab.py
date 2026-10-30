@@ -18,13 +18,14 @@ import functools
 import math
 import traceback
 from datetime import datetime
+from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSignal
 import cv2
 import numpy as np
 from PyQt6.QtGui import QColor, QImage, QPixmap
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QHeaderView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+    QAbstractItemView, QApplication, QCheckBox, QFileDialog, QGridLayout, QHeaderView, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget,
 )
 
@@ -33,10 +34,13 @@ from app.core.detect_test_common import SETTINGS_HINT, busy_cursor, capture_fram
 from app.core.gripper_test import (
     DEFAULT_WINDOW, ClickedPoint, ClickedPointStore, GripperPointWorker, PlaneReport, analyze_plane, point_from_cloud,
 )
+from app.core import transform_matrix as tm
 from app.core.pick_server import PickServer, format_ng, format_ok
 from app.core.point_pair_calib import (
-    CALIB_PATH, DEFAULT_RMS_LIMIT_MM, CalibError, CalibPair, OutputConfig, RigidFit, load_calibration, save_calibration, solve,
+    CALIB_PATH, DEFAULT_RMS_LIMIT_MM, CalibError, CalibPair, OutputConfig, RigidFit, load_calibration, save_calibration,
+    save_manual_transform, solve,
 )
+from app.widgets.elided_label import ElidedLabel
 from app.widgets.image_viewer import ImageViewer
 
 
@@ -67,6 +71,7 @@ class GripperTestTab(QWidget):
         self._worker = GripperPointWorker(self._point_store, self._output)
         self._fit: RigidFit | None = None        # 마지막으로 계산한 변환
         self._calib_stale = False                # 표를 고친 뒤 아직 다시 계산하지 않았다
+        self._fit_manual = False                 # 현재 변환이 '행렬 직접 입력'으로 적용한 값이다 (점 짝으로 푼 값이 아님)
         self._server = PickServer(self._store, self._worker, parent=self, port_field="port_gripper")
         self._build_ui()
 
@@ -224,6 +229,7 @@ class GripperTestTab(QWidget):
         self.right_tabs = QTabWidget()
         self.right_tabs.addTab(page_coord, "클릭 좌표 / 평면 검증")
         self.right_tabs.addTab(self._build_calib_page(), "좌표 변환 (카메라→로봇)")
+        self.right_tabs.addTab(self._build_matrix_page(), "행렬 직접 입력")
         right.addWidget(self.right_tabs, stretch=3)
 
         right.addWidget(QLabel("요청 / 응답 로그   ◀ 수신   ▶ 송신"))
@@ -353,7 +359,7 @@ class GripperTestTab(QWidget):
             fit, limit = self._fit, self.spin_limit.value()
             if fit is None:
                 why = "아직 좌표 변환을 계산하지 않았습니다. '좌표 변환' 탭에서 점 짝을 모아 [변환 계산]을 먼저 하세요."
-            elif fit.rms_mm > limit:
+            elif not self._fit_manual and fit.rms_mm > limit:
                 why = f"변환 잔차 RMS {fit.rms_mm:.2f} mm 가 한계 {limit:.2f} mm 를 넘습니다. 점 짝을 보강하거나 한계를 조정하세요."
             else:
                 why = ""
@@ -464,8 +470,8 @@ class GripperTestTab(QWidget):
         return page
 
     def _mark_calib_stale(self) -> None:
-        if getattr(self, "_calib_loading", False):
-            return
+        if getattr(self, "_calib_loading", False) or self._fit_manual:
+            return           # 수동 입력 행렬은 표가 바뀌어도 [변환 계산] 전까지 유지된다 (오래됐다는 경고 대상이 아님)
         self._calib_stale = True
         if self._fit is not None:
             self.calib_result.setText(self.calib_result.text().split("\n⚠")[0]
@@ -544,6 +550,7 @@ class GripperTestTab(QWidget):
             QMessageBox.warning(self, "변환 계산 불가", str(exc))
             return
         self._fit = fit
+        self._fit_manual = False
         self._calib_stale = False
         self._calib_loading = True
         try:
@@ -573,8 +580,8 @@ class GripperTestTab(QWidget):
     def _apply_output_config(self) -> None:
         frame = "robot" if self.cmb_frame.currentIndex() == 1 else "camera"
         fit = self._fit
-        self._output.set(frame, None if fit is None else fit.R, None if fit is None else fit.t,
-                         None if fit is None else fit.rms_mm, self.spin_limit.value())
+        rms = None if (fit is None or self._fit_manual) else fit.rms_mm     # 수동 입력 행렬은 잔차 검사 없음 (None)
+        self._output.set(frame, None if fit is None else fit.R, None if fit is None else fit.t, rms, self.spin_limit.value())
         robot = frame == "robot"
         if self.chk_robot_click.isChecked() != robot:    # 콤보에서 바꿔도 체크박스가 따라가게
             self.chk_robot_click.blockSignals(True)
@@ -592,24 +599,27 @@ class GripperTestTab(QWidget):
         except ValueError as exc:
             QMessageBox.warning(self, "저장 불가", str(exc))
             return
-        if self._calib_stale or self._fit is None:
+        manual = self._fit_manual and self._fit is not None     # 수동 입력 행렬은 점 짝으로 다시 풀지 않고 그대로 저장
+        if not manual and (self._calib_stale or self._fit is None):
             try:
                 self._on_calib_solve_silent(pairs)
             except CalibError:
                 self._fit = None      # 점이 부족하면 점 짝만 저장한다
-        save_calibration(CALIB_PATH, pairs, self._fit, self.ed_pose_memo.text().strip(), self.spin_limit.value())
-        self._log(f"좌표 변환 저장: {CALIB_PATH}")
+        save_calibration(CALIB_PATH, pairs, self._fit, self.ed_pose_memo.text().strip(), self.spin_limit.value(),
+                         source="manual" if manual else "pairs")
+        self._log(f"좌표 변환 저장: {CALIB_PATH}" + (" (수동 입력 행렬)" if manual else ""))
         QMessageBox.information(self, "저장", f"저장했습니다.\n{CALIB_PATH}")
 
     def _on_calib_solve_silent(self, pairs: list[CalibPair]) -> None:
         self._fit = solve(pairs)
+        self._fit_manual = False
         self._calib_stale = False
         self._apply_output_config()
 
     def _load_calib_file(self) -> None:
         """저장된 점 짝을 불러온다. 응답 좌표계는 항상 '카메라'로 시작한다 (안전)."""
         try:
-            pairs, _transform, memo, limit = load_calibration(CALIB_PATH)
+            pairs, transform, memo, limit = load_calibration(CALIB_PATH)
         except Exception as exc:  # noqa: BLE001 - 깨진 파일이 탭 생성을 막지 않게
             self._log(f"좌표 변환 파일을 읽지 못했습니다 ({CALIB_PATH}): {exc}")
             return
@@ -617,7 +627,16 @@ class GripperTestTab(QWidget):
             self._add_calib_row(p)
         self.ed_pose_memo.setText(memo)
         self.spin_limit.setValue(limit)
-        if pairs:
+        if transform and transform.get("source") == "manual":
+            try:       # 수동 입력 행렬은 점 짝으로 다시 풀지 않고 저장된 R, t를 그대로 쓴다
+                R, t = np.asarray(transform["R"], dtype=float), np.asarray(transform["t"], dtype=float)
+                if R.shape != (3, 3) or t.shape != (3,):
+                    raise ValueError("행렬 모양이 올바르지 않습니다")
+                self._set_manual_fit(R, t)
+                self._log("저장된 수동 입력 행렬을 불러왔습니다 (응답 좌표계는 '카메라'로 시작)")
+            except (ValueError, KeyError, TypeError) as exc:
+                self._log(f"저장된 수동 입력 행렬을 읽지 못했습니다: {exc}")
+        elif pairs:
             try:
                 self._fit = solve(pairs)
                 self._calib_stale = False
@@ -625,6 +644,264 @@ class GripperTestTab(QWidget):
             except (ValueError, CalibError):
                 pass
             self._log(f"저장된 보정점 {len(pairs)}개를 불러왔습니다 (응답 좌표계는 '카메라'로 시작)")
+
+    # =================================================================
+    # 행렬 직접 입력 / 저장된 변환과 비교
+    # =================================================================
+    def _build_matrix_page(self) -> QWidget:
+        self._mat_ref: dict | None = None          # 비교 기준 B: {"R", "t", "src"}
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(0, 6, 0, 0)
+        info = QLabel("이동 t(mm)와 회전(deg)을 넣으면 카메라→로봇 변환 행렬 (robot = R·camera + t)을 만듭니다. "
+                      "저장된 변환을 불러오면 입력 칸이 그 값으로 채워지니, 값을 고쳐 가며 기준과의 차이를 비교하세요. "
+                      "[적용]을 누르기 전에는 PICK 응답이나 저장 파일의 변환을 바꾸지 않습니다.")
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #555; font-size: 11px;")
+        lay.addWidget(info)
+
+        grid = QGridLayout()
+        grid.addWidget(QLabel("이동 t (mm)"), 1, 0)
+        grid.addWidget(QLabel("회전 (deg)"), 3, 0)
+        self.mat_t, self.mat_r = [], []
+        for k, name in enumerate("XYZ"):
+            grid.addWidget(QLabel(name), 0, 1 + k, Qt.AlignmentFlag.AlignHCenter)
+            sp = QDoubleSpinBox()
+            sp.setRange(-9999.0, 9999.0)
+            sp.setDecimals(3)
+            sp.setSingleStep(1.0)
+            sp.setToolTip(f"이동 t의 {name} (mm)")
+            sp.valueChanged.connect(lambda _v: self._mat_refresh())
+            self.mat_t.append(sp)
+            grid.addWidget(sp, 1, 1 + k)
+        for k, name in enumerate(("Rx", "Ry", "Rz")):
+            grid.addWidget(QLabel(name), 2, 1 + k, Qt.AlignmentFlag.AlignHCenter)
+            sp = QDoubleSpinBox()
+            sp.setRange(-360.0, 360.0)
+            sp.setDecimals(4)
+            sp.setSingleStep(0.5)
+            sp.setToolTip(f"{name} (deg)")
+            sp.valueChanged.connect(lambda _v: self._mat_refresh())
+            self.mat_r.append(sp)
+            grid.addWidget(sp, 3, 1 + k)
+        lay.addLayout(grid)
+
+        form = QFormLayout()
+        self.cmb_mat_order = QComboBox()
+        self.cmb_mat_order.addItems(list(tm.EULER_ORDERS))
+        self.cmb_mat_order.setToolTip("회전 칸의 오일러 각을 행렬로 바꾸는 순서. 앞의 것이 '좌표 변환' 탭 결과의 '회전(Rz·Ry·Rx)' 표시와 같습니다.\n"
+                                      "순서를 바꾸면 칸의 숫자는 그대로 두고 해석만 바뀝니다 (로봇이 쓰는 순서를 찾는 데 씁니다).")
+        self.cmb_mat_order.currentIndexChanged.connect(lambda _i: self._mat_refresh())
+        form.addRow("오일러 순서", self.cmb_mat_order)
+        lay.addLayout(form)
+
+        row = QHBoxLayout()
+        self.btn_mat_load = QPushButton("저장 파일")
+        self.btn_mat_load.setToolTip(f"{CALIB_PATH} 의 저장된 변환(R, t)을 입력 칸과 비교 기준(B)으로 불러옵니다.")
+        self.btn_mat_load.clicked.connect(lambda _=False: self._on_mat_load_saved())
+        self.btn_mat_other = QPushButton("다른 파일…")
+        self.btn_mat_other.clicked.connect(lambda _=False: self._on_mat_load_other())
+        self.btn_mat_fit = QPushButton("현재 결과")
+        self.btn_mat_fit.setToolTip("'좌표 변환' 탭에서 지금 계산해 둔 변환(저장 전 포함)을 입력 칸과 비교 기준(B)으로 가져옵니다.")
+        self.btn_mat_fit.clicked.connect(lambda _=False: self._on_mat_use_fit())
+        for b in (self.btn_mat_load, self.btn_mat_other, self.btn_mat_fit):
+            row.addWidget(b)
+        row.addStretch(1)
+        lay.addLayout(row)
+
+        self.mat_ref_label = ElidedLabel("비교 기준(B): 없음 - [저장 파일] 등 위 버튼으로 불러오세요")
+        self.mat_ref_label.setStyleSheet("color: #555; font-size: 11px;")
+        lay.addWidget(self.mat_ref_label)
+
+        self.mat_out = QPlainTextEdit()
+        self.mat_out.setReadOnly(True)
+        self.mat_out.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+        self.mat_out.setStyleSheet("font-family: Consolas, monospace; font-size: 11px;")
+        self.mat_out.setMinimumHeight(60)
+        lay.addWidget(self.mat_out, stretch=1)
+
+        row2 = QHBoxLayout()
+        self.btn_mat_copy = QPushButton("행렬 복사")
+        self.btn_mat_copy.setToolTip("입력(A)으로 만든 4x4 행렬을 np.array 문자열로 클립보드에 복사합니다 (전체 정밀도).")
+        self.btn_mat_copy.clicked.connect(lambda _=False: self._on_mat_copy())
+        self.btn_mat_zero = QPushButton("입력 초기화")
+        self.btn_mat_zero.clicked.connect(lambda _=False: self._mat_fill(np.eye(3), np.zeros(3)))
+        row2.addWidget(self.btn_mat_copy)
+        row2.addWidget(self.btn_mat_zero)
+        row2.addStretch(1)
+        lay.addLayout(row2)
+        self.btn_mat_apply = QPushButton("입력 행렬을 현재 변환으로 적용")
+        self.btn_mat_apply.setStyleSheet("font-weight: 600;")
+        self.btn_mat_apply.setToolTip("입력(A) 행렬을 '좌표 변환' 탭의 현재 변환으로 씁니다 (확인 창이 뜹니다).\n"
+                                      "'좌표 변환' 탭 표의 점 짝과는 무관하게 이 행렬을 그대로 쓰며, 잔차 RMS 한계 검사(CALIB_BAD)도 적용되지 않습니다.\n"
+                                      "저장 파일(data/gripper_calib.json)에도 바로 기록되어 4-1/5-2 탭과 다음 실행에서도 이 행렬을 씁니다.")
+        self.btn_mat_apply.clicked.connect(lambda _=False: self._on_mat_apply())
+        lay.addWidget(self.btn_mat_apply)
+        self._mat_refresh()
+        return page
+
+    def _mat_input(self) -> tuple[np.ndarray, np.ndarray]:
+        t = np.array([sp.value() for sp in self.mat_t], dtype=float)
+        rx, ry, rz = (sp.value() for sp in self.mat_r)
+        return tm.euler_to_R(rx, ry, rz, self.cmb_mat_order.currentText()), t
+
+    def _mat_fill(self, R, t) -> None:
+        """입력 칸을 (R, t)로 채운다 (오일러는 지금 고른 순서로). 칸 신호는 막고 마지막에 한 번만 갱신."""
+        rx, ry, rz = tm.R_to_euler(R, self.cmb_mat_order.currentText())
+        for sp, v in zip(self.mat_t + self.mat_r, [*np.asarray(t, dtype=float), rx, ry, rz]):
+            sp.blockSignals(True)
+            sp.setValue(float(v))
+            sp.blockSignals(False)
+        self._mat_refresh()
+
+    def _mat_probe_points(self) -> tuple[list, str]:
+        """비교에 쓸 카메라 좌표: '좌표 변환' 탭 표의 보정점이 있으면 그것, 없으면 기본 점 5개."""
+        pts = []
+        for r in range(self.calib_table.rowCount()):
+            try:
+                pts.append(tuple(float(self.calib_table.item(r, 1 + k).data(Qt.ItemDataRole.UserRole)) for k in range(3)))
+            except (AttributeError, TypeError, ValueError):
+                continue
+        if pts:
+            return pts, f"보정점 {len(pts)}개"
+        return list(tm.DEFAULT_PROBE_POINTS), "기본 점 5개 (Z=600 mm, 좌우/상하 ±200)"
+
+    def _mat_refresh(self) -> None:
+        R, t = self._mat_input()
+        order = self.cmb_mat_order.currentText()
+        rx, ry, rz = (sp.value() for sp in self.mat_r)
+        lines = [tm.format_T(tm.to_T(R, t), f"A (입력)   {order} = ({rx:+.4f}, {ry:+.4f}, {rz:+.4f})°")]
+        ref = self._mat_ref
+        if ref is None:
+            lines += ["", "B (기준): 없음 - [저장 파일 불러오기] 등으로 기준을 정하면 차이를 보여줍니다."]
+        else:
+            bx, by, bz = tm.R_to_euler(ref["R"], order)
+            lines += ["", tm.format_T(tm.to_T(ref["R"], ref["t"]), f"B (기준)   {order} = ({bx:+.4f}, {by:+.4f}, {bz:+.4f})°")]
+            pts, pts_name = self._mat_probe_points()
+            c = tm.compare_transforms(R, t, ref["R"], ref["t"], pts)
+            dt = c["dt"]
+            verdict = ("사실상 같음" if c["pt_max"] < 0.2 else
+                       "작은 차이 (픽 정밀도에 영향 가능)" if c["pt_max"] < 1.0 else
+                       "차이가 큼 - 오일러 순서/부호/단위(mm)를 확인하세요")
+            lines += ["", f"차이 A − B  →  {verdict}",
+                      f"  (비교 점: {pts_name})",
+                      f"  회전 차이     {c['rot_deg']:.4f}°",
+                      f"  이동 차이     ({dt[0]:+.3f}, {dt[1]:+.3f}, {dt[2]:+.3f}) mm   |Δt| {c['dt_norm']:.3f} mm",
+                      f"  점 위치 차이  RMS {c['pt_rms']:.3f} mm   최대 {c['pt_max']:.3f} mm"]
+        self.mat_out.setPlainText("\n".join(lines))
+
+    def _set_mat_ref(self, R, t, src: str) -> None:
+        self._mat_ref = {"R": np.asarray(R, dtype=float), "t": np.asarray(t, dtype=float), "src": src}
+        self.mat_ref_label.setText(f"비교 기준(B): {src}")
+        self._mat_fill(R, t)
+
+    def _mat_load_json(self, path) -> bool:
+        path = Path(path)
+        if not path.is_file():
+            QMessageBox.information(self, "파일 없음", f"변환 파일이 없습니다.\n{path}")
+            return False
+        _pairs, tf, memo, _limit = load_calibration(path)
+        if not tf or "R" not in tf or "t" not in tf:
+            QMessageBox.information(self, "변환 없음", f"이 파일에는 저장된 변환(R, t)이 없습니다 (점 짝만 저장된 상태일 수 있음).\n{path}")
+            return False
+        R, t = np.asarray(tf["R"], dtype=float), np.asarray(tf["t"], dtype=float)
+        if R.shape != (3, 3) or t.shape != (3,) or not (np.isfinite(R).all() and np.isfinite(t).all()):
+            QMessageBox.warning(self, "형식 오류", f"R은 3x3, t는 길이 3의 숫자여야 합니다.\n{path}")
+            return False
+        extra = []
+        if tf.get("rms_mm") is not None:
+            extra.append(f"RMS {float(tf['rms_mm']):.2f} mm")
+        if tf.get("n_used"):
+            extra.append(f"점 {int(tf['n_used'])}개")
+        if memo:
+            extra.append(memo)
+        self._set_mat_ref(R, t, f"{path.name}" + (f"  ({' · '.join(extra)})" if extra else ""))
+        self._log(f"행렬 직접 입력: 변환을 불러왔습니다 - {path}")
+        return True
+
+    @_guarded
+    def _on_mat_load_saved(self) -> None:
+        self._mat_load_json(CALIB_PATH)
+
+    @_guarded
+    def _on_mat_load_other(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "변환 JSON 선택", str(Path(CALIB_PATH).parent), "JSON (*.json)")
+        if path:
+            self._mat_load_json(path)
+
+    @_guarded
+    def _on_mat_use_fit(self) -> None:
+        if self._fit is None:
+            QMessageBox.information(self, "계산 결과 없음", "'좌표 변환' 탭에서 먼저 [변환 계산]을 하세요.")
+            return
+        if self._fit_manual:
+            self._set_mat_ref(self._fit.R, self._fit.t, "현재 변환 (수동 입력 행렬 - 잔차 검사 없음)")
+            return
+        suffix = "  ⚠ 표가 바뀐 뒤 다시 계산하지 않음" if self._calib_stale else ""
+        self._set_mat_ref(self._fit.R, self._fit.t,
+                          f"현재 계산 결과 (RMS {self._fit.rms_mm:.2f} mm · 점 {self._fit.n_used}개){suffix}")
+
+    def _clear_calib_errors(self) -> None:
+        """변환 계산 탭 표의 '오차mm' 열을 비운다 (수동 입력 행렬은 표의 점 짝과 무관하다)."""
+        self._calib_loading = True
+        try:
+            for r in range(self.calib_table.rowCount()):
+                it = self.calib_table.item(r, 7)
+                if it is not None:
+                    it.setText("")
+                    it.setData(Qt.ItemDataRole.ForegroundRole, None)
+        finally:
+            self._calib_loading = False
+
+    def _set_manual_fit(self, R, t) -> None:
+        """'행렬 직접 입력'으로 정한 변환을 현재 변환으로 쓴다. 점 짝(표)으로 푼 값이 아니고, 표의 점과 비교하지도 않는다
+        (표의 점은 다른 촬영 자세에서 모은 것일 수 있다). 그래서 잔차 RMS 한계 검사도 적용하지 않는다."""
+        R, t = np.asarray(R, dtype=float), np.asarray(t, dtype=float)
+        self._fit = RigidFit(R=R, t=t, rms_mm=0.0, max_mm=0.0, loo_rms_mm=None, n_used=0, errors_mm=[],
+                             extent_mm=0.0, scale_ratio=1.0, warnings=[])
+        self._fit_manual = True
+        self._calib_stale = False
+        self._clear_calib_errors()
+        rx, ry, rz = self._fit.euler_zyx_deg()
+        self.calib_result.setText("\n".join([
+            "■ 수동 입력 행렬 적용 중 - 표의 점 짝과 무관하게 이 행렬을 그대로 씁니다 (잔차 검사 없음)",
+            f"이동 t = ({t[0]:+.2f}, {t[1]:+.2f}, {t[2]:+.2f}) mm   회전(Rz·Ry·Rx, 참고용) = ({rx:+.2f}, {ry:+.2f}, {rz:+.2f})°",
+            "robot = R·camera + t    (표를 고쳐도 이 행렬은 [변환 계산]을 누르기 전까지 유지됩니다)"]))
+        self._apply_output_config()
+
+    @_guarded
+    def _on_mat_apply(self) -> None:
+        R, t = self._mat_input()
+        ans = QMessageBox.question(
+            self, "행렬 적용",
+            "입력한 행렬을 현재 좌표 변환으로 적용하고, 저장 파일에도 바로 기록합니다.\n"
+            f"({CALIB_PATH})\n\n"
+            "• 4-1 / 5-2 탭과 다음 실행에서도 이 행렬을 씁니다.\n"
+            "• 기존 파일의 변환이 점 짝으로 푼 것이면 같은 폴더에 백업(.bak-날짜시각)해 둡니다.\n"
+            "• '좌표 변환' 탭의 점 짝(표)과는 무관하게 이 행렬을 그대로 쓰며, 잔차 RMS 한계 검사는 적용되지 않습니다.\n\n"
+            "PICK 응답 좌표계가 '로봇 좌표'이면 이 행렬로 로봇이 움직입니다. 계속할까요?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+        self._set_manual_fit(R, t)
+        try:
+            backup = save_manual_transform(CALIB_PATH, R, t, self.ed_pose_memo.text().strip(), self.spin_limit.value())
+        except OSError as exc:
+            self._log(f"행렬 직접 입력: 적용은 됐지만 저장 파일에 기록하지 못했습니다 ({CALIB_PATH}): {exc}")
+            QMessageBox.warning(self, "저장 실패", f"이 앱에서는 적용됐지만 저장 파일에 쓰지 못했습니다.\n"
+                                                  f"4-1/5-2 탭은 이전 저장 파일을 계속 씁니다.\n{exc}")
+            return
+        self.calib_result.setText(self.calib_result.text() + f"\n저장 파일에 기록했습니다: {Path(CALIB_PATH).name} (4-1/5-2 탭도 이 행렬을 씁니다)"
+                                  + (f"\n기존 파일 백업: {backup.name}" if backup else ""))
+        self._log("행렬 직접 입력: 입력 행렬을 현재 변환으로 적용하고 저장 파일에 기록했습니다 (점 짝과 무관, 잔차 검사 없음)"
+                  + (f" - 기존 파일 백업: {backup}" if backup else ""))
+
+    @_guarded
+    def _on_mat_copy(self) -> None:
+        R, t = self._mat_input()
+        QApplication.clipboard().setText(tm.format_numpy(tm.to_T(R, t)))
+        self._log("행렬 직접 입력: 입력 행렬(A)을 클립보드에 복사했습니다")
+
 
     # =================================================================
     # 평면 검증

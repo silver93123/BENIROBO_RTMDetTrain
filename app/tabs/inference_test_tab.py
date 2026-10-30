@@ -29,6 +29,7 @@ from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd
 from app.core.detect_test_common import (
     busy_cursor, capture_frame, load_settings_paths, new_capture_name, save_intensity_png, summary_text,
 )
+from app.core import roi_filter
 from app.core.detector import Detector, Detection
 from app.widgets.image_viewer import ImageViewer
 from src.detection.mask_refine import RefineParams, RefineResult, get_bank, load_session_arrays, refine_masks
@@ -113,10 +114,11 @@ class InferenceTestTab(QWidget):
 
         # --- ROI (검출 영역 제한) --------------------------------------------
         roi_row = QHBoxLayout()
-        self.chk_roi = QCheckBox("ROI 사용")
+        self.chk_roi = QCheckBox("ROI (중심 기준)")
         self.chk_roi.setToolTip(
             "켜면 이미지 위에서 마우스로 드래그해 사각형을 그립니다 (숫자로 미세 조정 가능).\n"
-            "추론은 이 영역만 잘라서 수행하고, 밖의 물체는 검출되지 않습니다.\n"
+            "검출은 전체 이미지로 하고, 마스크 중심이 이 영역 밖인 검출은 숨깁니다\n"
+            "(4/5번 탭은 픽점이 영역 밖인 것을 제외 - 이 탭은 픽점이 없어 마스크 중심으로 판단).\n"
             "ROI는 이미지를 바꿔도 유지됩니다 (같은 카메라/빈 고정 가정)."
         )
         self.chk_roi.toggled.connect(self._on_roi_toggled)
@@ -209,15 +211,21 @@ class InferenceTestTab(QWidget):
         self.spin_f_det.setSingleStep(0.05)
         self.spin_f_det.setValue(0.6)
         self.spin_f_det.setToolTip("원본 검출 중 CAD 투영 안에 있는 비율이 이 값 미만이면 숨김.")
+        self.spin_f_occ = QDoubleSpinBox()
+        self.spin_f_occ.setRange(0.0, 1.0)
+        self.spin_f_occ.setSingleStep(0.02)
+        self.spin_f_occ.setValue(1.0)
+        self.spin_f_occ.setToolTip("마스크 윤곽 중 바깥이 더 가까운(앞에서 가리는 물체) 비율이 이 값을 넘으면 숨김. 1.00 = 사용 안 함.")
         for w in (self.chk_suspect, self.chk_drop_failed):
             filt_row.addWidget(w)
-        for lab, sp in (("score ≥", self.spin_f_score), ("변경률 ≤", self.spin_f_change), ("원본∩템플릿 ≥", self.spin_f_det)):
+        for lab, sp in (("score ≥", self.spin_f_score), ("변경률 ≤", self.spin_f_change), ("원본∩템플릿 ≥", self.spin_f_det),
+                        ("윤곽 가림 ≤", self.spin_f_occ)):
             filt_row.addWidget(QLabel(lab))
             filt_row.addWidget(sp)
         filt_row.addStretch(1)
         for w in (self.chk_suspect, self.chk_drop_failed):
             w.toggled.connect(lambda _=None: self._update_view())
-        for sp in (self.spin_f_score, self.spin_f_change, self.spin_f_det):
+        for sp in (self.spin_f_score, self.spin_f_change, self.spin_f_det, self.spin_f_occ):
             sp.valueChanged.connect(lambda _=None: self._update_view())
         center.addLayout(filt_row)
 
@@ -371,7 +379,7 @@ class InferenceTestTab(QWidget):
             score_threshold=threshold,
         )
         try:
-            detections = detector.predict(self._image_path, conf_threshold=threshold, roi=self._current_roi())
+            detections = detector.predict(self._image_path, conf_threshold=threshold, roi=None)   # 전체 이미지로 검출, ROI는 표시 단계에서 적용
         except ImportError as exc:
             QMessageBox.critical(
                 self, "추론 엔진 없음",
@@ -385,7 +393,7 @@ class InferenceTestTab(QWidget):
 
         self._last_detections = detections
         self._clear_refined()
-        self.log_message.emit(f"검출 완료: {len(detections)}건 (threshold={threshold:.2f})")
+        self.log_message.emit(f"검출 완료: {len(detections)}건 (threshold={threshold:.2f}, 전체 이미지)")
         if self.chk_refine.isChecked():
             self._apply_refine()  # 실패해도 내부에서 팝업 + 원본 표시
         else:
@@ -446,16 +454,19 @@ class InferenceTestTab(QWidget):
             self.log_message.emit("ROI 사용: 이미지 위에서 드래그해 영역을 지정하세요")
         else:
             self.image_viewer.set_roi(None)
-            self.log_message.emit("ROI 해제: 전체 이미지로 검출합니다")
+            self.log_message.emit("ROI 해제: 모든 검출을 표시합니다")
+        self._update_view()
 
     def _on_roi_drawn(self, x1: int, y1: int, x2: int, y2: int) -> None:
         self._set_roi_spins((x1, y1, x2, y2))
         self.log_message.emit(f"ROI 설정: ({x1}, {y1}) ~ ({x2}, {y2}) [{x2 - x1}x{y2 - y1}px]")
+        self._update_view()
 
     def _on_roi_spin_changed(self) -> None:
         r = tuple(self.roi_spins[k].value() for k in ("x1", "y1", "x2", "y2"))
         if r[2] > r[0] and r[3] > r[1]:
             self.image_viewer.set_roi(r)
+        self._update_view()
 
     def _on_roi_reset(self) -> None:
         size = self.image_viewer.image_size()
@@ -463,6 +474,7 @@ class InferenceTestTab(QWidget):
             return
         self._set_roi_spins((0, 0, size[0], size[1]))
         self.image_viewer.set_roi((0, 0, size[0], size[1]))
+        self._update_view()
 
     # ------------------------------------------------------- 형상 보정
     def _clear_refined(self) -> None:
@@ -554,14 +566,19 @@ class InferenceTestTab(QWidget):
         src = self._refined_detections if use_refined else self._last_detections
         out_d, out_r = [], []
         self._n_hidden_suspect = 0
+        self._n_hidden_roi = 0
+        roi = self._current_roi()
         filt = self.chk_suspect.isChecked() and bool(self._refine_results)
         for i, det in enumerate(src):
             if det.confidence < thr:
                 continue
             r = self._refine_results[i] if i < len(self._refine_results) else None
+            if roi is not None and det.mask is not None and not roi_filter.uv_in_roi(roi_filter.mask_centroid_uv(det.mask), roi):
+                self._n_hidden_roi += 1   # 픽점이 없는 탭이라 마스크 무게중심을 기준으로 한다
+                continue
             if filt and r is not None and r.is_suspect(
                     self.spin_f_score.value(), self.spin_f_change.value(), self.spin_f_det.value(),
-                    self.chk_drop_failed.isChecked()):
+                    self.chk_drop_failed.isChecked(), self.spin_f_occ.value()):
                 self._n_hidden_suspect += 1
                 continue
             out_d.append(det)
@@ -588,6 +605,9 @@ class InferenceTestTab(QWidget):
         n_h = getattr(self, "_n_hidden_suspect", 0)
         if n_h:
             self.result_list.addItem(QListWidgetItem(f"(의심 마스크 {n_h}건 숨김)"))
+        n_r = getattr(self, "_n_hidden_roi", 0)
+        if n_r:
+            self.result_list.addItem(QListWidgetItem(f"(ROI 밖 {n_r}건 숨김)"))
 
     def _on_export(self) -> None:
         if not self._last_detections:
@@ -611,6 +631,7 @@ class InferenceTestTab(QWidget):
                     "area_before": int(r.n_before), "area_after": int(r.n_after),
                     "det_in_tpl": float(r.det_in_tpl), "coverage": float(r.coverage),
                     "change_ratio": float(r.change_ratio),
+                    "occ_edge": float(r.occ_edge), "occ_edge_mm": float(r.occ_edge_mm),
                 }
             data.append(row)
         with open(path, "w", encoding="utf-8") as f:

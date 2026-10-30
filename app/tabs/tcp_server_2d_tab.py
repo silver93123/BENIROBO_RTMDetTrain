@@ -19,9 +19,9 @@ from __future__ import annotations
 
 import numpy as np
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QCheckBox, QLabel, QMessageBox
+from PyQt6.QtWidgets import QCheckBox, QMessageBox
 
-from app.core.camera_intrinsics import project_points
+from app.core.camera_intrinsics import anchor_overlay_uv, project_points
 from app.core.pick_pipeline import PickRunResult
 from app.core.point_pair_calib import SavedTransformOutput
 from app.widgets.elided_label import ElidedLabel
@@ -95,6 +95,8 @@ class TcpServer2DTab(TcpServerTab):
             if np.any(pts[:, 2] <= 1.0):
                 continue
             uv = project_points(pts, res.intrinsics)
+            if getattr(p, "uv", None) is not None:   # 위치를 읽은 픽셀에 찍는다 (근사 핀홀 재투영은 점군과 어긋남)
+                uv = anchor_overlay_uv(uv, p.uv)
             e = p.pose["euler_deg"]
             label = (f"obj{i} (roll 고정)\n"
                      f"X{origin[0]:+.1f} Y{origin[1]:+.1f} Z{origin[2]:+.1f} mm\n"
@@ -123,9 +125,11 @@ class TcpServer2DTab(TcpServerTab):
             self._add_card(
                 f"#{rank + 1}  obj{c.instance_id}  {c.label} (conf {c.confidence:.2f}){sent}",
                 [(f"pick{frame_tag}  X{c.xyz_mm[0]:+.1f}  Y{c.xyz_mm[1]:+.1f}  Z{c.xyz_mm[2]:+.1f} mm", ""),
-                 (f"R{c.rpy_deg[0]:+.1f}  P{c.rpy_deg[1]:+.1f}  Y{c.rpy_deg[2]:+.1f} deg  (roll 고정)", ""),
+                 ((f"Rz{c.rpy_deg[2]:+.1f}  Ry{c.rpy_deg[1]:+.1f} deg  (로봇, Rx 미사용; 볼트 축 = 툴 X축)"
+                   if res.coord_frame == "robot" and c.axis_cam is not None else
+                   f"R{c.rpy_deg[0]:+.1f}  P{c.rpy_deg[1]:+.1f}  Y{c.rpy_deg[2]:+.1f} deg  (roll 고정)"), ""),
                  (f"보정 score {c.fitness:.2f}   φ{p.phi_deg:+.0f}° θ{p.theta_deg:.0f}°   "
-                  f"Z 표면 {p.z_surface_mm:.1f} → 중심 {p.z_center_mm:.1f}", ok_color)],
+                  f"Z 표면 {p.z_surface_mm:.1f} → 모델중심 {p.z_center_mm:.1f} · 픽점(카메라 Z) {p.pick_point_mm[2]:.1f}", ok_color)],
                 border="#9cc99c" if rank < max_picks else "#ddd")
         ok_ids = {c.instance_id for c in res.candidates}
         for i, p in enumerate(res.pose2d_results):
@@ -150,6 +154,6 @@ class TcpServer2DTab(TcpServerTab):
         self.config_label.setText(
             f"2D 기반 (ICP 없음)  |  포트 {s.tcp.port_2d}  |  카메라 {s.camera.camera_type} ×{s.camera.num_frames}프레임  |  "
             f"모델 {ckpt}  |  CAD {cad}  |  형상 보정 {'ON' if s.refine.enabled else 'OFF (켜야 동작)'}  |  "
-            f"깊이 보정 {'ON' if s.refine.depth_correct else 'OFF'}  |  "
+            f"깊이 보정 {'ON' if s.refine.depth_correct else 'OFF'}  |  위치 {'점군 직접' if s.refine.pos_from_pcd else '평면+핀홀'}  |  "
             f"좌표계 {'로봇' if getattr(self, 'chk_robot', None) is not None and self.chk_robot.isChecked() else '카메라'}  |  "
             f"요청 '{s.tcp.trigger_cmd}' -> 응답 최대 {s.tcp.max_picks}개  |  값 변경은 '12. 설정' 탭 (저장 후 다음 요청부터 적용)")

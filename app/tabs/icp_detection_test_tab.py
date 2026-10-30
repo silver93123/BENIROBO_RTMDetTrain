@@ -9,7 +9,7 @@ data/dataset/<세션>/ 의 프레임 하나를 불러와 "2D 검출 -> 형상 �
           (app/core/detect_test_common.py)
 
     2D 검출
-        ROI 크롭                드래그/숫자 지정, 영역 안만 잘라 추론
+        ROI (픽점 기준)         드래그/숫자 지정, 전체 검출 후 픽점이 영역 안인 것만 유지
         RTMDet-Ins              그레이 -> 3채널, conf 필터, 원본 좌표 복원
         형상 보정 (선택)        CAD 투영 템플릿 + 깊이로 마스크 정리 (src/detection/mask_refine.py)
     3D 정합 (ICP)  - 현재 구현분만 연결 (PCA 축 추정 / roll 후보 탐색은 아직 없음)
@@ -45,9 +45,10 @@ from PyQt6.QtWidgets import (
     QMessageBox, QPushButton, QScrollArea, QSlider, QSpinBox, QVBoxLayout, QWidget,
 )
 
-from app.core import icp_runner
+from app.core import icp_runner, roi_filter
 from app.core.app_settings import get_settings
-from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd, project_points
+from app.core.camera_intrinsics import (
+    anchor_overlay_uv, estimate_intrinsics_from_organized_pcd, locate_pixel, project_points)
 from app.core.detect_test_common import (
     busy_cursor, capture_frame, load_settings_paths, new_capture_name, save_intensity_png, summary_text,
 )
@@ -165,6 +166,7 @@ class ICPDetectionTestTab(QWidget):
         self.opacity_bar = make_label_opacity_bar(self.image_viewer)   # 라벨이 물체를 가릴 때 투명도 조절
         self._top_row.addWidget(self.opacity_bar)
         zoom_row = QHBoxLayout()
+        self._zoom_row = zoom_row   # 하위 탭(4-1)이 왼쪽 빈 자리에 옵션을 더 넣을 수 있게
         zoom_row.addStretch(1)
         zoom_row.addWidget(make_zoom_bar(self.image_viewer))   # 휠 확대/축소 + 가운데 버튼 이동 (왼쪽 드래그 = ROI)
         center.addLayout(zoom_row)
@@ -220,10 +222,11 @@ class ICPDetectionTestTab(QWidget):
 
         # ROI
         roi_row = QHBoxLayout()
-        self.chk_roi = QCheckBox("ROI 크롭")
+        self.chk_roi = QCheckBox("ROI (픽점 기준)")
         self.chk_roi.setToolTip(
             "켜면 이미지 위에서 마우스로 드래그해 사각형을 그립니다 (숫자로 미세 조정 가능).\n"
-            "추론은 이 영역만 잘라서 수행하고, 밖의 물체는 검출되지 않습니다.\n"
+            "검출은 전체 이미지로 하고, 픽점을 계산한 뒤 픽점이 이 영역 안에 있는 것만 남깁니다\n"
+            "(밖에 있는 것은 '실패: ROI 밖'으로 표시).\n"
             "ROI는 프레임을 바꿔도 유지됩니다 (같은 카메라/빈 고정 가정)."
         )
         self.chk_roi.toggled.connect(self._on_roi_toggled)
@@ -666,7 +669,7 @@ class ICPDetectionTestTab(QWidget):
             self._log("ROI 사용: 이미지 위에서 드래그해 영역을 지정하세요")
         else:
             self.image_viewer.set_roi(None)
-            self._log("ROI 해제: 전체 이미지로 검출합니다")
+            self._log("ROI 해제: 모든 픽점을 사용합니다")
 
     def _on_roi_drawn(self, x1: int, y1: int, x2: int, y2: int) -> None:
         self._set_roi_spins((x1, y1, x2, y2))
@@ -713,7 +716,7 @@ class ICPDetectionTestTab(QWidget):
             self._detector_key = key
 
         try:
-            detections = self._detector.predict(self._image_path, conf_threshold=threshold, roi=roi)
+            detections = self._detector.predict(self._image_path, conf_threshold=threshold, roi=None)   # 전체 이미지로 검출, ROI는 픽점 기준으로 나중에 적용
         except ImportError as exc:
             QMessageBox.critical(self, "추론 엔진 없음", str(exc))
             return False
@@ -724,8 +727,8 @@ class ICPDetectionTestTab(QWidget):
 
         detections = [d for d in detections if d.mask is not None]
         self._raw_detections = detections
-        roi_txt = f", ROI={roi}" if roi else ""
-        self._log(f"2D 검출 완료: {len(detections)}건 (conf≥{threshold:.2f}{roi_txt})")
+        roi_txt = f", ROI={roi} (픽점 기준으로 적용)" if roi else ""
+        self._log(f"2D 검출 완료: {len(detections)}건 (conf≥{threshold:.2f}, 전체 이미지{roi_txt})")
 
         self._apply_refine_and_show()
         if not detections:
@@ -887,12 +890,30 @@ class ICPDetectionTestTab(QWidget):
             results.append(result)
             self._log_instance(i, result)
 
+        self._exclude_icp_outside_roi(results)
         self._icp_results = results
         self._render_result_panel(results)
         self._show_pick_overlays(results)
         self.btn_open_viewer.setEnabled(len(results) > 0)
         n_ok = sum(r.ok for r in results)
         self._log(f"3D 정합 완료: 성공 {n_ok}/{len(results)}")
+
+    def _exclude_icp_outside_roi(self, results: list[ICPResult]) -> None:
+        """픽점이 ROI 밖인 정합 결과를 실패(사유: ROI 밖)로 바꾼다. 인덱스 정렬을 깨지 않으려고 목록에서 빼지 않는다."""
+        roi = self._current_roi()
+        if roi is None or self._pcd is None or self._valid is None:
+            return
+        intr = estimate_intrinsics_from_organized_pcd(self._pcd, self._valid)
+        n = 0
+        for r in results:
+            if r.ok and r.pick_point_mm is not None:
+                why = roi_filter.outside_reason(roi_filter.pick_pixel(r.pick_point_mm, self._pcd, self._valid, intr), roi)
+                if why:
+                    r.ok, r.error = False, why
+                    n += 1
+                    self._log(f"  obj{r.instance_id} {why}")
+        if n:
+            self._log(f"ROI 밖 픽점 {n}건 제외")
 
     def _log_instance(self, i: int, r: ICPResult) -> None:
         pts = f"점 {r.num_points_scene}→{r.num_points_after_outlier}"
@@ -973,6 +994,11 @@ class ICPDetectionTestTab(QWidget):
                 if np.any(pts[:, 2] <= 1.0):
                     continue
                 uv = project_points(pts, intr)
+                # 근사 핀홀 투영은 점군과 수~십수 px 어긋난다 -> 원점은 점군에서 같은 광선의 픽셀로 찾아 찍는다
+                # (이 마커를 13번 탭에서 클릭하면 이 점의 좌표가 나오도록)
+                true_uv = locate_pixel(self._pcd, self._valid, origin, guess_uv=uv[0])
+                if true_uv is not None:
+                    uv = anchor_overlay_uv(uv, true_uv)
                 e = r.pose["euler_deg"]
                 ox = self._out_xyz(origin)
                 label = (f"obj{r.instance_id}\n"

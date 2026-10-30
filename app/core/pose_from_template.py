@@ -13,6 +13,9 @@ ICP 정합 없이, 형상 보정 단계에서 이미 결정된 값만 쓴다.
     * 화면에서 보이는 물체 표면의 depth는 CAD 중심보다 가깝다. depth_correct=True면 중심에서 카메라 쪽으로
       광선을 따라 물체를 벗어나는 거리(원통 근사: 옆면 r/cos(phi), 끝면 L/(2 sin|phi|) 중 작은 쪽)를 더한다.
 
+    * pose_from_refine_pcd는 축 방향(phi, theta)도 마스크 안 3D 점의 주축으로 다시 구한다 (axis_from_mask_pcd).
+      템플릿의 phi는 깊이 기울기에 끌려 15도 간격으로 굳기 쉬워서, 점군에서 직접 구한 축이 더 정확하다.
+
 결과는 ICP 탭과 같은 기준(축보정이 적용된 CAD 좌표계, 단위 m)의 T 로도 돌려줘서 ICP 결과와 직접 비교할 수 있다.
 """
 from __future__ import annotations
@@ -20,6 +23,7 @@ from __future__ import annotations
 import dataclasses
 import math
 
+import cv2
 import numpy as np
 
 from app.core import icp_runner
@@ -39,11 +43,52 @@ class Pose2D:
     phi_deg: float = 0.0
     theta_deg: float = 0.0
     source: str = ""                         # 위치(X,Y,Z)를 어디서 얻었는지: "plane" | "pcd(창 N점)" | "plane(폴백 ...)"
+    uv: tuple[float, float] | None = None    # 위치를 얻은 픽셀 (템플릿 중심). 화면 마커는 근사 핀홀 재투영이 아니라 여기에 찍는다
 
 
 # pcd 직접 읽기 방식: 템플릿 중심 픽셀 주변 win x win 창에서 마스크 안 유효 점의 중앙값을 표면 점으로 쓴다.
 PCD_WINDOW = 5
+AXIS_MIN_POINTS = 60    # 축 맞춤에 필요한 마스크 안 유효 점 수 (미만이면 템플릿의 phi/theta를 그대로 쓴다)
+AXIS_TRIM_MM = 8.0      # 주축에서 이보다 먼 점(가장자리 튀는 점, 옆 물체)은 버리고 다시 맞춘다
+AXIS_MAX_DEV_DEG = 30.0  # 점군 축이 템플릿 축과 이보다 크게 다르면 점군 쪽이 틀린 것으로 보고 템플릿을 쓴다
 PCD_MIN_POINTS = 3   # 창 안 유효 점이 이보다 적으면 읽지 않고 기존 방식(평면 + 역투영)으로 되돌아간다
+
+
+def axis_from_mask_pcd(pcd, valid, mask, ref_axis):
+    """마스크 안 3D 점들의 주축 = 부품 긴 축 방향.
+
+    반환: (축 단위벡터 (카메라 좌표, ref_axis와 같은 방향), 사용한 점 수). 쓸 수 없으면 (None, 점 수).
+    마스크를 1px 깎아 가장자리의 튀는 깊이를 줄이고, 공분산 최대 고유벡터를 구한 뒤 축에서 AXIS_TRIM_MM보다
+    먼 점을 버리고 두 번 더 맞춘다. ref_axis(템플릿 축)와 AXIS_MAX_DEV_DEG 넘게 다르면 None.
+    """
+    if mask is None:
+        return None, 0
+    m = np.asarray(mask, dtype=bool) & np.asarray(valid, dtype=bool)
+    er = cv2.erode(m.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+    if int(er.sum()) >= AXIS_MIN_POINTS:
+        m = er
+    pts = np.asarray(pcd[m], dtype=np.float64).reshape(-1, 3)
+    pts = pts[np.isfinite(pts).all(axis=1) & (pts[:, 2] > 1.0)]
+    if len(pts) < AXIS_MIN_POINTS:
+        return None, int(len(pts))
+    a = None
+    for _ in range(3):
+        c = pts.mean(axis=0)
+        w, v = np.linalg.eigh(np.cov((pts - c).T))
+        a = v[:, int(np.argmax(w))]
+        d = pts - c
+        dist = np.linalg.norm(d - np.outer(d @ a, a), axis=1)
+        keep = dist <= AXIS_TRIM_MM
+        if int(keep.sum()) < AXIS_MIN_POINTS or bool(keep.all()):
+            break
+        pts = pts[keep]
+    n = int(len(pts))
+    ref = np.asarray(ref_axis, dtype=np.float64)
+    if float(np.dot(a, ref)) < 0.0:
+        a = -a
+    if float(np.dot(a, ref)) < math.cos(math.radians(AXIS_MAX_DEV_DEG)):
+        return None, n
+    return a / np.linalg.norm(a), n
 
 
 def _depth_offset(bank, phi_deg: float, depth_correct: bool) -> float:
@@ -57,9 +102,10 @@ def _depth_offset(bank, phi_deg: float, depth_correct: bool) -> float:
     return min(d_side, d_end)
 
 
-def _assemble(rr, bank, t_cam, z_surf: float, z_c: float, cad_axis_deg, cad_center_mm, source: str) -> Pose2D:
+def _assemble(rr, bank, t_cam, z_surf: float, z_c: float, cad_axis_deg, cad_center_mm, source: str,
+              phi_theta=None) -> Pose2D:
     """모델 중심의 카메라 좌표 t_cam(mm)에서 회전/ICP 좌표계 T/픽 포인트를 만든다 (위치를 어떻게 구했든 공통)."""
-    phi, theta = float(rr.phi_deg), float(rr.theta_deg)
+    phi, theta = phi_theta if phi_theta is not None else (float(rr.phi_deg), float(rr.theta_deg))
     R_model = icp_runner._Rz(theta) @ icp_runner._Ry(-phi)
     E = np.asarray(bank.model_to_cad_R)
     R_ax = icp_runner._Rz(cad_axis_deg[2]) @ icp_runner._Ry(cad_axis_deg[1]) @ icp_runner._Rx(cad_axis_deg[0])
@@ -108,7 +154,9 @@ def pose_from_refine(rr, bank, intrinsics, cad_axis_deg=(0.0, 0.0, 0.0),
     if not np.isfinite(z_c) or z_c <= 1.0:
         return Pose2D(False, f"depth 이상({z_c:.1f}mm)")
     t_cam = np.array([(u - cx) / fx * z_c, (v - cy) / fy * z_c, z_c])
-    return _assemble(rr, bank, t_cam, z_surf, z_c, cad_axis_deg, cad_center_mm, source="plane")
+    p = _assemble(rr, bank, t_cam, z_surf, z_c, cad_axis_deg, cad_center_mm, source="plane")
+    p.uv = (float(u), float(v))
+    return p
 
 
 def surface_point_from_pcd(pcd, valid, mask, u: float, v: float, win: int = PCD_WINDOW):
@@ -134,7 +182,8 @@ def surface_point_from_pcd(pcd, valid, mask, u: float, v: float, win: int = PCD_
 
 
 def pose_from_refine_pcd(rr, bank, intrinsics, pcd, valid, cad_axis_deg=(0.0, 0.0, 0.0),
-                         cad_center_mm=None, depth_correct: bool = True, win: int = PCD_WINDOW) -> Pose2D:
+                         cad_center_mm=None, depth_correct: bool = True, win: int = PCD_WINDOW,
+                         axis_from_pcd: bool = True) -> Pose2D:
     """pose_from_refine과 같은 입력 + 점군(pcd, valid)으로, 위치를 점군에서 직접 읽어 pose를 만든다.
 
     위치: 템플릿 중심 픽셀 (u, v) 주변 창의 점군 중앙값 = 표면 점 P_s -> 카메라 광선 방향으로 d(표면->중심) 이동
@@ -154,12 +203,28 @@ def pose_from_refine_pcd(rr, bank, intrinsics, pcd, valid, cad_axis_deg=(0.0, 0.
             p.source = f"plane(폴백: 창 안 유효 점 {n}개)"
         return p
 
-    d = _depth_offset(bank, float(rr.phi_deg), depth_correct)
+    phi, theta = float(rr.phi_deg), float(rr.theta_deg)
+    src_axis = ""
+    if axis_from_pcd:
+        ph, th = math.radians(phi), math.radians(theta)
+        tpl_axis = (math.cos(ph) * math.cos(th), math.cos(ph) * math.sin(th), math.sin(ph))
+        a, na = axis_from_mask_pcd(pcd, valid, getattr(rr, "mask", None), tpl_axis)
+        if a is not None:
+            phi = math.degrees(math.asin(max(-1.0, min(1.0, float(a[2])))))
+            theta = math.degrees(math.atan2(float(a[1]), float(a[0]))) % 360.0
+            src_axis = f", 축 pcd {na}점(템플릿 φ{rr.phi_deg:+.0f}°→{phi:+.1f}°)"
+        else:
+            src_axis = f", 축 템플릿(pcd 축 사용 불가: 점 {na}개/편차 큼)"
+
+    d = _depth_offset(bank, phi, depth_correct)
     t_cam = p_s + d * p_s / np.linalg.norm(p_s)
     z_c = float(t_cam[2])
     if not np.all(np.isfinite(t_cam)) or z_c <= 1.0:
         return Pose2D(False, f"depth 이상({z_c:.1f}mm)")
-    return _assemble(rr, bank, t_cam, float(p_s[2]), z_c, cad_axis_deg, cad_center_mm, source=f"pcd(창 {n}점)")
+    p = _assemble(rr, bank, t_cam, float(p_s[2]), z_c, cad_axis_deg, cad_center_mm,
+                  source=f"pcd(창 {n}점{src_axis})", phi_theta=(phi, theta))
+    p.uv = (float(u), float(v))   # 표면 -> 중심 이동은 광선 위라 같은 픽셀
+    return p
 
 
 def compare_methods(base: Pose2D, alt: Pose2D, uv, intrinsics, image_shape) -> dict | None:

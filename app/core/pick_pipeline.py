@@ -8,7 +8,7 @@
     mode="2d" 이면 3D 정합(ICP) 대신 형상 보정 템플릿에서 픽 포인트/회전을 바로 구한다
     (app/core/pose_from_template.py, 5-2 탭). 형상 보정이 켜져 있어야 하고, 보정이 성공한 검출만 후보가 된다.
 
-    ROI 크롭                settings.detection.roi_*
+    ROI (픽점 기준)         settings.detection.roi_*  (전체 이미지로 검출 -> 픽점 산출 -> 픽점이 ROI 안인 것만 후보)
     2D 검출 (RTMDet-Ins)    settings.detection.*
     형상 보정 (선택)        settings.refine.*      (실패하면 원본 마스크로 계속 진행)
     의심 마스크 제외 (선택) settings.refine.suspect_*
@@ -36,7 +36,7 @@ from typing import Callable
 import cv2
 import numpy as np
 
-from app.core import icp_runner, pose_from_template
+from app.core import icp_runner, pose_from_template, roi_filter
 from app.core.app_settings import SettingsData
 from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd
 from app.core.detector import Detection, Detector
@@ -69,6 +69,7 @@ class PickCandidate:
     fitness: float
     rmse_mm: float
     was_flipped: bool = False
+    axis_cam: tuple[float, float, float] | None = None   # 부품 긴 축 방향 (카메라 좌표, 2D 기반만). 로봇 좌표 변환 시 Rz/Ry 계산용
 
 
 @dataclass
@@ -83,6 +84,8 @@ class PickRunResult:
     refine_results: list[RefineResult] = field(default_factory=list)
     # 의심 마스크로 제외된 검출: (제외 전 번호, 사유, confidence)
     suspect_excluded: list[tuple[int, str, float]] = field(default_factory=list)
+    # 픽점이 ROI 밖이라 제외된 검출: (번호, 사유). ROI는 검출 후 픽점 기준으로 적용한다 (app/core/roi_filter.py)
+    roi_excluded: list[tuple[int, str]] = field(default_factory=list)
     icp_results: list[ICPResult] = field(default_factory=list)
     # mode="2d" 전용: 인스턴스별 2D 기반 pose (detections와 index 일치), 화면 표시용 카메라 모델/CAD 크기
     mode: str = "icp"
@@ -99,6 +102,8 @@ class PickRunResult:
         t = f", {total:.0f}ms" if total is not None else ""
         if self.suspect_excluded:
             t = f", 의심 마스크 {len(self.suspect_excluded)}건 제외" + t
+        if self.roi_excluded:
+            t = f", ROI 밖 {len(self.roi_excluded)}건 제외" + t
         if self.ok:
             what = "2D 계산 성공" if self.mode == "2d" else "정합 성공"
             return f"성공: 검출 {n_det} / {what} {n_ok} / 후보 {len(self.candidates)}{t}"
@@ -233,11 +238,11 @@ class PickPipeline:
             except Exception as exc:  # noqa: BLE001
                 raise PipelineError("CONFIG_ERROR", f"정합 알고리즘 설정 오류: {exc}") from exc
 
-        # ---- 2D 검출 (ROI 크롭 포함) ----
+        # ---- 2D 검출 (전체 이미지. ROI는 픽점 산출 뒤에 픽점 기준으로 적용한다) ----
         t = time.perf_counter()
         det_cfg = snap.detection
         try:
-            raw = detector.predict(res.image_path, conf_threshold=det_cfg.conf_threshold, roi=det_cfg.roi())
+            raw = detector.predict(res.image_path, conf_threshold=det_cfg.conf_threshold, roi=None)
         except ImportError as exc:
             self._detector = None
             raise PipelineError("CONFIG_ERROR", f"추론 엔진 없음: {exc}") from exc
@@ -289,6 +294,19 @@ class PickPipeline:
             res.icp_results.append(r)
         res.timings_ms["icp"] = (time.perf_counter() - t) * 1000.0
 
+        # ---- ROI: 픽점이 ROI 밖인 정합 결과는 실패 처리 ----
+        roi = snap.detection.roi()
+        if roi is not None:
+            intr = estimate_intrinsics_from_organized_pcd(pcd, valid)
+            for r in res.icp_results:
+                if r.ok and r.pick_point_mm is not None:
+                    uv = roi_filter.pick_pixel(r.pick_point_mm, pcd, valid, intr)
+                    why = roi_filter.outside_reason(uv, roi)
+                    if why:
+                        r.ok, r.error = False, why
+                        res.roi_excluded.append((r.instance_id, why))
+            self._log_roi_excluded(res)
+
         # ---- 픽 후보 정리 ----
         cands: list[PickCandidate] = []
         for r in res.icp_results:
@@ -310,6 +328,11 @@ class PickPipeline:
                                 f"정합 성공 0/{len(res.icp_results)}{best} ({first_err})")
         res.ok = True
 
+    def _log_roi_excluded(self, res: PickRunResult) -> None:
+        if res.roi_excluded:
+            self._log(f"ROI 밖 픽점 {len(res.roi_excluded)}건 제외: "
+                      + ", ".join(f"obj{i}" for i, _w in res.roi_excluded))
+
     def _run_2d(self, pcd, valid, snap: SettingsData, res: PickRunResult) -> None:
         """ICP 없이: 형상 보정이 고른 템플릿에서 픽 포인트/회전을 바로 구한다."""
         t = time.perf_counter()
@@ -320,12 +343,22 @@ class PickPipeline:
         res.intrinsics = tuple(float(v) for v in intr)
         res.cad_extent_mm = float(self._cad_pcd.get_axis_aligned_bounding_box().get_max_extent()) * 1000.0
         center_mm = np.asarray(self._cad_pcd.get_center(), dtype=np.float64) * 1000.0   # ICP와 같은 정의의 CAD 중심
+        roi = snap.detection.roi()
         cands: list[PickCandidate] = []
         for i, rr in enumerate(res.refine_results):
-            p = pose_from_template.pose_from_refine(
-                rr, bank, intr, cad_axis_deg=snap.icp.cad_axis_correction_deg, cad_center_mm=center_mm,
-                depth_correct=bool(snap.refine.depth_correct))
+            kw = dict(cad_axis_deg=snap.icp.cad_axis_correction_deg, cad_center_mm=center_mm,
+                      depth_correct=bool(snap.refine.depth_correct))
+            if snap.refine.pos_from_pcd:   # 위치를 점군에서 직접 읽는다 (13번 탭 클릭 좌표와 같은 방식)
+                p = pose_from_template.pose_from_refine_pcd(rr, bank, intr, pcd, valid, **kw)
+            else:
+                p = pose_from_template.pose_from_refine(rr, bank, intr, **kw)
             res.pose2d_results.append(p)
+            if p.ok and roi is not None:   # 픽점이 ROI 밖이면 실패 처리
+                uv = roi_filter.pick_pixel(p.pick_point_mm, pcd, valid, intr, uv=p.uv or rr.center_uv)
+                why = roi_filter.outside_reason(uv, roi)
+                if why:
+                    p.ok, p.error = False, why
+                    res.roi_excluded.append((i, why))
             if not p.ok:
                 continue
             det = res.detections[i]
@@ -334,8 +367,10 @@ class PickPipeline:
                 instance_id=i, label=det.label, confidence=float(det.confidence),
                 xyz_mm=tuple(float(v) for v in p.pick_point_mm),
                 rpy_deg=(float(e["roll_deg"]), float(e["pitch_deg"]), float(e["yaw_deg"])),
-                fitness=float(rr.score), rmse_mm=0.0))   # 2D 기반에서 fitness 자리는 형상 보정 score
+                fitness=float(rr.score), rmse_mm=0.0,   # 2D 기반에서 fitness 자리는 형상 보정 score
+                axis_cam=None if p.axis_cam is None else tuple(float(v) for v in p.axis_cam)))
         res.timings_ms["pose2d"] = (time.perf_counter() - t) * 1000.0
+        self._log_roi_excluded(res)
         res.candidates = sort_candidates(cands, snap.tcp.sort_mode)
         if not res.candidates:
             first_err = next((p.error for p in res.pose2d_results if p.error), "")
@@ -379,7 +414,8 @@ class PickPipeline:
         excluded: list[tuple[int, str, float]] = []
         for i, (det, rr) in enumerate(zip(detections, refine_results)):
             why = rr.is_suspect(cfg.suspect_min_score, cfg.suspect_max_change,
-                                cfg.suspect_min_det_in_tpl, cfg.suspect_drop_failed)
+                                cfg.suspect_min_det_in_tpl, cfg.suspect_drop_failed,
+                                getattr(cfg, "suspect_max_occ_edge", 1.0))
             if why:
                 excluded.append((i, why, float(det.confidence)))
             else:

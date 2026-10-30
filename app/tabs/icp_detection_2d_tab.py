@@ -19,8 +19,8 @@ from app.core.app_settings import get_settings
 from app.core.point_pair_calib import SavedTransformOutput
 from app.widgets.elided_label import ElidedLabel
 
-from app.core import pose_from_template
-from app.core.camera_intrinsics import estimate_intrinsics_from_organized_pcd, project_points
+from app.core import pose_from_template, roi_filter
+from app.core.camera_intrinsics import anchor_overlay_uv, estimate_intrinsics_from_organized_pcd, project_points
 from app.core.detect_test_common import load_settings_paths
 from app.core.icp_runner import ICPResult
 from app.core.pose_from_template import Pose2D
@@ -36,6 +36,8 @@ class ICPDetection2DTab(ICPDetectionTestTab):
     _pick2d: list = []          # 인스턴스별 Pose2D (검출 index와 일치)
     _pick2d_pcd: list = []      # 같은 검출을 점군 직접 읽기 방식으로 계산한 Pose2D (기존 방식과의 비교용)
     _bank = None
+    _main_name = "점군 직접 읽기"   # 위치 계산 방식 이름 (현재 / 비교용)
+    _alt_name = "평면+핀홀"
     _intr = None
     _axis_deg = (0.0, 0.0, 0.0)
 
@@ -55,6 +57,13 @@ class ICPDetection2DTab(ICPDetectionTestTab):
         self.chk_depth_correct.setToolTip(
             "보이는 물체 표면 depth에 (축 기울기에 따른) 반두께/반길이를 더해 CAD 중심 depth로 만든다. 끄면 표면 depth 그대로.")
         self.chk_depth_correct.toggled.connect(lambda _=False: self._on_calc_2d(quiet=True))
+        self.chk_pos_pcd = QCheckBox("점군 직접 읽기")
+        self.chk_pos_pcd.setChecked(True)
+        self.chk_pos_pcd.setToolTip(
+            "pick 위치(X,Y,Z)를 템플릿 중심 픽셀의 점군에서 직접 읽습니다 (13번 탭 클릭 좌표와 같은 방식, 렌즈 왜곡 보정 포함).\n"
+            "끄면 평면 depth + 핀홀 역투영(근사 intrinsic)이라 화면 가장자리에서 수~십수 mm 어긋날 수 있습니다.\n"
+            "카드에는 반대쪽 방식의 값과 차이(Δ)가 비교용으로 같이 나옵니다. 5-2 서버는 12. 설정의 같은 옵션을 따릅니다.")
+        self.chk_pos_pcd.toggled.connect(lambda _=False: self._on_calc_2d(quiet=True))
         for i, w in enumerate((self.btn_run_2d, self.btn_calc_2d, self.chk_depth_correct)):
             self._top_row.insertWidget(1 + i, w)
 
@@ -63,15 +72,16 @@ class ICPDetection2DTab(ICPDetectionTestTab):
         self.chk_robot = QCheckBox("로봇 좌표로 변환")
         self.chk_robot.setToolTip(
             "켜면 pick X,Y,Z 표시/로그를 13번 탭에서 [저장]한 좌표 변환(카메라→로봇)으로 바꿉니다 (ICP/2D 기반 모두).\n"
-            "회전(R/P/Y)과 '기존 vs pcd 직접 읽기' 비교의 Δ는 카메라 기준 그대로입니다.\n"
+            "회전(R/P/Y)과 '위치 방식 비교' 카드의 Δ는 카메라 기준 그대로입니다.\n"
             "카메라가 로봇 손에 달려 있으면 보정 때와 같은 촬영 자세에서만 맞습니다.")
         self.chk_robot.toggled.connect(self._on_robot_toggled)
         # 상태 문구는 폭에 맞춰 잘라 보인다 (길어지면 상단 줄/창 폭이 같이 커지던 문제 방지; 전체 문구는 툴팁)
         self.lbl_robot = ElidedLabel("")
         self.lbl_robot.setStyleSheet("color: #666; font-size: 11px;")
         self.lbl_robot.setMaximumWidth(260)
-        self._top_row.insertWidget(4, self.chk_robot)
-        self._top_row.insertWidget(5, self.lbl_robot)
+        # 상단 줄이 이미 빡빡해서(창 최소 폭), 이미지 위 줄(확대/축소 막대 왼쪽 빈 자리)에 둔다
+        for i, w in enumerate((self.chk_pos_pcd, self.chk_robot, self.lbl_robot)):
+            self._zoom_row.insertWidget(i, w)
 
         # 검출/보정 옵션을 5-2 서버가 쓰는 '12. 설정' 값과 맞춘다 (저장할 때마다 다시 맞춤)
         self._sync_from_settings()
@@ -85,7 +95,8 @@ class ICPDetection2DTab(ICPDetectionTestTab):
         snap = get_settings().snapshot()
         r = snap.refine
         pairs = ((self.chk_refine, r.enabled), (self.chk_depth_phi, r.depth_phi), (self.chk_overlap, r.resolve_overlap),
-                 (self.chk_suspect, r.hide_suspect), (self.chk_depth_correct, r.depth_correct))
+                 (self.chk_suspect, r.hide_suspect), (self.chk_depth_correct, r.depth_correct),
+                 (self.chk_pos_pcd, r.pos_from_pcd))
         widgets = [w for w, _v in pairs] + [self.spin_depth_tol, self.spin_min_score, self.thresh_slider]
         for w in widgets:
             w.blockSignals(True)
@@ -123,6 +134,17 @@ class ICPDetection2DTab(ICPDetectionTestTab):
 
     def _frame_tag(self) -> str:
         return " (로봇 좌표)" if self._robot_active() else ""
+
+    def _rot_text(self, p) -> str:
+        """회전 표시 문구. 로봇 좌표 표시 중이면 볼트 긴 축을 로봇 좌표로 바꾼 Rz -> Ry (Rx 미사용, 툴 X축 = 볼트 축),
+        아니면 카메라 기준 R/P/Y (5-2 서버 응답과 같은 값)."""
+        if self._robot_active() and p.axis_cam is not None:
+            r = self._output.convert_rz_ry(p.axis_cam)
+            if r is not None:
+                rz, ry, vertical = r
+                return f"Rz{rz:+.1f} Ry{ry:+.1f} deg (로봇)" + (" ⚠수직: Rz 불정" if vertical else "")
+        e = p.pose["euler_deg"]
+        return f"R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} Y{e['yaw_deg']:+.1f} deg"
 
     def _refresh_robot_label(self) -> None:
         if not self.chk_robot.isChecked():
@@ -209,46 +231,57 @@ class ICPDetection2DTab(ICPDetectionTestTab):
 
         self._bank, self._intr, self._axis_deg = bank, intr, params.cad_axis_correction_deg
         depth_correct = self.chk_depth_correct.isChecked()
+        use_pcd = self.chk_pos_pcd.isChecked()
+        kw = dict(cad_axis_deg=self._axis_deg, cad_center_mm=cad_center_mm, depth_correct=depth_correct)
+
+        def by_pcd(rr):
+            return pose_from_template.pose_from_refine_pcd(rr, bank, intr, self._pcd, self._valid, **kw)
+
+        def by_plane(rr):
+            return pose_from_template.pose_from_refine(rr, bank, intr, **kw)
+
+        main_fn, alt_fn = (by_pcd, by_plane) if use_pcd else (by_plane, by_pcd)
+        self._main_name, self._alt_name = ("점군 직접 읽기", "평면+핀홀") if use_pcd else ("평면+핀홀", "점군 직접 읽기")
         self._pick2d = []
+        roi = self._current_roi()   # 픽점이 ROI 밖이면 실패 처리 (검출은 전체 이미지로 했음)
         for i, rr in enumerate(self._refine_results):
-            p = pose_from_template.pose_from_refine(
-                rr, bank, intr, cad_axis_deg=self._axis_deg, cad_center_mm=cad_center_mm,
-                depth_correct=depth_correct)
+            p = main_fn(rr)
+            if p.ok and roi is not None:
+                why = roi_filter.outside_reason(
+                    roi_filter.pick_pixel(p.pick_point_mm, self._pcd, self._valid, intr, uv=p.uv or rr.center_uv), roi)
+                if why:
+                    p.ok, p.error = False, why
             self._pick2d.append(p)
             if p.ok:
-                e = p.pose["euler_deg"]
                 px = self._out_xyz(p.pick_point_mm)
                 self._log(f"  obj{i} 2D 기반 pick{self._frame_tag()}=({px[0]:+.1f}, {px[1]:+.1f}, "
-                          f"{px[2]:+.1f}) mm  R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} "
-                          f"Y{e['yaw_deg']:+.1f} deg  (φ{p.phi_deg:+.0f} θ{p.theta_deg:.0f}, "
-                          f"Z 표면 {p.z_surface_mm:.1f} → 중심 {p.z_center_mm:.1f}, roll 고정)")
+                          f"{px[2]:+.1f}) mm  {self._rot_text(p)}  (φ{p.phi_deg:+.0f} θ{p.theta_deg:.0f}, "
+                          f"Z 표면 {p.z_surface_mm:.1f} → 모델중심 {p.z_center_mm:.1f} · 픽점(카메라 Z) {p.pick_point_mm[2]:.1f}, roll 고정)")
             else:
                 self._log(f"  obj{i} 2D 기반 불가: {p.error}")
         self._log(f"2D 기반 계산 완료: 성공 {sum(p.ok for p in self._pick2d)}/{len(self._pick2d)}"
-                  f" (깊이 보정 {'ON' if depth_correct else 'OFF'})")
+                  f" (위치 {self._main_name}, 깊이 보정 {'ON' if depth_correct else 'OFF'})")
 
-        # 같은 검출을 '점군 직접 읽기' 방식으로도 계산해 기존(평면 + 핀홀 역투영) 방식과의 차이를 mm로 본다.
+        # 같은 검출을 반대쪽 위치 방식으로도 계산해 현재 방식과의 차이를 mm로 본다 (비교용).
         # 회전/깊이 보정은 같고 위치(X,Y,Z)를 얻는 방법만 다르다 (app/core/pose_from_template.py).
-        self._pick2d_pcd = []
+        self._pick2d_pcd = []     # 이름은 옛 것: 지금은 '현재 방식의 반대쪽' 결과 (점군 직접 읽기가 켜져 있으면 평면+핀홀)
         diffs: list[dict] = []
         for i, rr in enumerate(self._refine_results):
-            q = pose_from_template.pose_from_refine_pcd(
-                rr, bank, intr, self._pcd, self._valid, cad_axis_deg=self._axis_deg,
-                cad_center_mm=cad_center_mm, depth_correct=depth_correct)
+            q = alt_fn(rr)
             self._pick2d_pcd.append(q)
             if not q.ok:
-                self._log(f"  obj{i} pcd 직접 읽기 불가: {q.error}")
+                self._log(f"  obj{i} {self._alt_name} 불가: {q.error}")
                 continue
             c = pose_from_template.compare_methods(self._pick2d[i], q, rr.center_uv, intr, self._pcd.shape)
-            if c is None:   # 기존 방식이 실패한 인스턴스는 비교할 대상이 없다
+            if c is None:   # 현재 방식이 실패한 인스턴스는 비교할 대상이 없다
                 continue
             diffs.append(c)
-            self._log(f"  obj{i} pcd 직접 읽기 [{q.source}] 기존 대비 Δ(X,Y,Z)=({c['dx']:+.2f}, {c['dy']:+.2f}, "
+            self._log(f"  obj{i} {self._alt_name} [{q.source}] {self._main_name} 대비 Δ(X,Y,Z)=({c['dx']:+.2f}, {c['dy']:+.2f}, "
                       f"{c['dz']:+.2f}) mm  |Δ| 3D {c['d3_mm']:.2f} / XY {c['dxy_mm']:.2f} mm  "
                       f"(화면 중심에서 {c['r_px']:.0f}px, {c['r_pct']:.0f}%)")
         if diffs:
             d3 = [c["d3_mm"] for c in diffs]
-            self._log(f"기존 vs pcd 직접 읽기: {len(diffs)}건, 3D 차이 평균 {sum(d3) / len(d3):.2f} / 최대 {max(d3):.2f} mm")
+            self._log(f"{self._main_name} vs {self._alt_name}: {len(diffs)}건, 3D 차이 평균 {sum(d3) / len(d3):.2f} / 최대 {max(d3):.2f} mm")
 
         # 화면 갱신 (이미 ICP 결과가 있으면 같이 다시 그린다)
         self._render_result_panel(self._icp_results)
@@ -275,11 +308,12 @@ class ICPDetection2DTab(ICPDetectionTestTab):
             if np.any(pts[:, 2] <= 1.0):
                 continue
             uv = project_points(pts, self._intr)
-            e = p.pose["euler_deg"]
+            if p.uv is not None:    # 위치를 읽은 픽셀(템플릿 중심)에 찍는다 - 근사 핀홀 재투영은 점군과 어긋난다
+                uv = anchor_overlay_uv(uv, p.uv)
             ox = self._out_xyz(origin)
             label = (f"2D obj{i} (roll 고정)\n"
                      f"X{ox[0]:+.1f} Y{ox[1]:+.1f} Z{ox[2]:+.1f} mm{self._frame_tag()}\n"
-                     f"R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} Y{e['yaw_deg']:+.1f} deg")
+                     f"{self._rot_text(p)}")
             out.append({"origin": tuple(uv[0]), "axes": [tuple(q) for q in uv[1:]], "label": label, "dot": DOT_2D, "label_above": True})
         return out
 
@@ -302,11 +336,10 @@ class ICPDetection2DTab(ICPDetectionTestTab):
                 err.setWordWrap(True)
                 lay.addWidget(err)
             else:
-                e = p.pose["euler_deg"]
                 pos = self._out_xyz(p.pick_point_mm)
                 lay.addWidget(QLabel(f"pick{self._frame_tag()} X{pos[0]:+.1f} Y{pos[1]:+.1f} Z{pos[2]:+.1f} mm"))
-                lay.addWidget(QLabel(f"R{e['roll_deg']:+.1f} P{e['pitch_deg']:+.1f} Y{e['yaw_deg']:+.1f} deg"))
-                info = QLabel(f"φ{p.phi_deg:+.0f}° θ{p.theta_deg:.0f}°  Z 표면 {p.z_surface_mm:.1f} → 중심 {p.z_center_mm:.1f}")
+                lay.addWidget(QLabel(self._rot_text(p)))
+                info = QLabel(f"φ{p.phi_deg:+.0f}° θ{p.theta_deg:.0f}°  Z 표면 {p.z_surface_mm:.1f} → 모델중심 {p.z_center_mm:.1f} · 픽점(카메라 Z) {p.pick_point_mm[2]:.1f}")
                 info.setStyleSheet("color: #888; font-size: 10px;")
                 info.setWordWrap(True)
                 lay.addWidget(info)
@@ -325,19 +358,19 @@ class ICPDetection2DTab(ICPDetectionTestTab):
             self.result_layout.insertWidget(self.result_layout.count() - 1, card)
 
     def _add_pcd_compare_label(self, lay, i: int, base) -> None:
-        """2D 기반 카드에 '점군 직접 읽기' 방식의 pick 좌표와 기존 방식 대비 차이(mm)를 덧붙인다."""
+        """2D 기반 카드에 반대쪽 위치 방식의 pick 좌표와 현재 방식 대비 차이(mm)를 덧붙인다."""
         q = self._pick2d_pcd[i] if i < len(self._pick2d_pcd) else None
         if q is None or self._pcd is None or self._intr is None:
             return
         if not q.ok:
-            text, color = f"pcd 직접 읽기 불가: {q.error}", "#c0392b"
+            text, color = f"{self._alt_name} 불가: {q.error}", "#c0392b"
         else:
             c = pose_from_template.compare_methods(
                 base, q, self._refine_results[i].center_uv, self._intr, self._pcd.shape)
-            pos = q.pick_point_mm   # 이 카드는 '기존 대비 Δ'와 함께 보므로 항상 카메라 좌표
-            text = (f"pcd 직접 읽기 [{q.source}] (카메라 좌표)\n"
+            pos = q.pick_point_mm   # 이 카드는 '현재 방식 대비 Δ'와 함께 보므로 항상 카메라 좌표
+            text = (f"비교: {self._alt_name} [{q.source}] (카메라 좌표)\n"
                     f"pick X{pos[0]:+.1f} Y{pos[1]:+.1f} Z{pos[2]:+.1f} mm\n"
-                    f"기존 대비 ΔX{c['dx']:+.2f} ΔY{c['dy']:+.2f} ΔZ{c['dz']:+.2f} mm\n"
+                    f"{self._main_name} 대비 ΔX{c['dx']:+.2f} ΔY{c['dy']:+.2f} ΔZ{c['dz']:+.2f} mm\n"
                     f"|Δ| 3D {c['d3_mm']:.2f} / XY {c['dxy_mm']:.2f} mm\n"
                     f"표면 Z 차이 {c['dz_surf_mm']:+.2f} mm · 화면 중심에서 {c['r_px']:.0f}px ({c['r_pct']:.0f}%)")
             color = "#555"

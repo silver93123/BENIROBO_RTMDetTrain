@@ -83,8 +83,12 @@ class RefineSettings:
     suspect_min_score: float = 0.80       # 템플릿 적합 점수가 이 값 미만이면 의심
     suspect_max_change: float = 0.50      # 변경률((추가+삭제)/원본 면적)이 이 값 초과면 의심
     suspect_min_det_in_tpl: float = 0.60  # 원본 검출 중 CAD 투영 안에 있는 비율이 이 값 미만이면 의심
+    suspect_max_occ_edge: float = 1.0     # 윤곽 가림: 마스크 윤곽 중 바깥이 더 가까운(앞에서 가리는) 비율이 이 값 초과면 의심 (1.0 = 사용 안 함)
     # 2D 기반 픽 포인트(4-1 탭 / 5-2 서버): 보이는 표면 depth -> CAD 중심 depth 보정 (app/core/pose_from_template.py)
     depth_correct: bool = True
+    # 2D 기반 위치(X,Y,Z)를 얻는 방법: True = 템플릿 중심 픽셀의 점군을 직접 읽음 (13번 탭 클릭 좌표와 같은 방식, 렌즈 왜곡 보정 포함),
+    # False = 평면 depth + 핀홀 역투영 (intrinsic을 점군에서 역산한 근사라 화면 가장자리일수록 오차가 큼 - 비교/호환용)
+    pos_from_pcd: bool = True
 
 
 @dataclass

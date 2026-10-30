@@ -136,9 +136,14 @@ class RefineResult:
     coverage: float = 0.0        # 템플릿 중 최종 마스크가 채운 비율 (낮으면 끊김/가림이 큼)
     change_ratio: float = 0.0    # (추가+삭제 픽셀) / 원본 면적 (크면 보정이 많이 고쳤다 = 원본 신뢰도 낮음)
     center_uv: tuple | None = None  # 최종 템플릿의 모델 중심 픽셀 (u, v), 이미지 좌표. 2D 기반 픽 포인트 계산용
+    # 윤곽 기반 가림 지표: 최종 마스크 윤곽선 중, 바로 바깥에 "물체 평면보다 fill_tol_mm 이상 가까운" 픽셀
+    # (=앞에서 가리는 다른 물체)이 붙어 있는 비율. 볼트가 바닥/먼 물체와 맞닿은 정상 경계는 바깥이 더 멀어서 0에 가깝고,
+    # 위 볼트에 잘려 끊긴 경계는 바깥이 더 가까워서 커진다. 템플릿으로 메운 면적과 무관하게 '잘린 경계'만 본다.
+    occ_edge: float = 0.0
+    occ_edge_mm: float = 0.0     # 위 경계의 길이 (mm, 대략)
 
     def is_suspect(self, min_score: float = 0.0, max_change: float = 9.9, min_det_in_tpl: float = 0.0,
-                   drop_failed: bool = True) -> str:
+                   drop_failed: bool = True, max_occ_edge: float = 1.0) -> str:
         """의심 마스크면 사유 문자열, 아니면 ''. 보정 포기(ok=False)는 drop_failed일 때 의심으로 본다."""
         if not self.ok:
             return f"보정포기({self.reason})" if drop_failed else ""
@@ -148,6 +153,8 @@ class RefineResult:
             return f"변경률 {self.change_ratio:.2f}>{max_change:.2f}"
         if self.det_in_tpl < min_det_in_tpl:
             return f"원본∩템플릿 {self.det_in_tpl:.2f}<{min_det_in_tpl:.2f}"
+        if self.occ_edge > max_occ_edge:
+            return f"윤곽 가림 {self.occ_edge:.2f}>{max_occ_edge:.2f}"
         return ""
 
     def summary(self) -> str:
@@ -156,7 +163,8 @@ class RefineResult:
             return f"보정 안 함({self.reason}{tail}): {REASON_HELP.get(self.reason, '')}"
         return (f"보정 score={self.score:.2f} phi={self.phi_deg:+.0f}° theta={self.theta_deg:.0f}° "
                 f"면적 {self.n_before}→{self.n_after} (+{self.n_added}/-{self.n_removed}) "
-                f"[원본∩템플릿 {self.det_in_tpl:.2f}, 채움 {self.coverage:.2f}, 변경률 {self.change_ratio:.2f}]"
+                f"[원본∩템플릿 {self.det_in_tpl:.2f}, 채움 {self.coverage:.2f}, 변경률 {self.change_ratio:.2f}, "
+                f"윤곽가림 {self.occ_edge:.2f}({self.occ_edge_mm:.0f}mm)]"
                 + (f" 겹침정리 -{self.n_overlap_removed}" if self.n_overlap_removed else ""))
 
 
@@ -663,12 +671,28 @@ def _refine_impl(det_mask: np.ndarray, pcd_mm: np.ndarray, valid_mask: np.ndarra
 
     n_added, n_removed = int((out & ~det).sum()), int((det & ~out).sum())
     t_area = max(int(t_r.sum()), 1)
+
+    # ---- 8. 윤곽 기반 가림 판정 -------------------------------------------
+    # 최종 마스크 윤곽 픽셀 중, 가까운 곳(reach)에 '앞에서 가리는 픽셀'이 있는 비율.
+    # 낱개 잡음 점은 열기(open)로 제거해 잡음에 반응하지 않게 한다.
+    fin_u8 = final_r.astype(np.uint8)
+    contour = final_r & ~cv2.erode(fin_u8, np.ones((3, 3), np.uint8)).astype(bool)
+    occ_clean = cv2.morphologyEx(occ_r.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    reach = int(np.clip(round(2.5 * px_per_mm), 2, 8))
+    kr = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * reach + 1, 2 * reach + 1))
+    occ_near = cv2.dilate(occ_clean, kr).astype(bool)
+    n_contour = int(contour.sum())
+    n_cut = int((contour & occ_near).sum())
+    occ_edge = n_cut / max(n_contour, 1)
+    occ_edge_mm = n_cut / max(px_per_mm, 1e-6)
+
     return RefineResult(
         mask=out, ok=True, score=score, phi_deg=phi, theta_deg=float(th),
         n_before=n_before, n_after=n_after, n_added=n_added, n_removed=n_removed,
         det_in_tpl=float((det_r & t_r).sum()) / max(int(det_r.sum()), 1),
         coverage=float((final_r & t_r).sum()) / t_area,
         change_ratio=(n_added + n_removed) / max(n_before, 1),
+        occ_edge=float(occ_edge), occ_edge_mm=float(occ_edge_mm),
         plane=(float(u0), float(v0), float(pa), float(pb), float(pc)),
         center_uv=(float(cx0 + bx + patch / 2.0), float(cy0 + by + patch / 2.0)),
     )
