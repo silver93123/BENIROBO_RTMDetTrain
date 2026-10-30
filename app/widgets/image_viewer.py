@@ -18,6 +18,7 @@ POSE_OVERLAY_COLOR = QColor(0, 220, 255, POSE_OVERLAY_ALPHA)  # 하늘색 - 노�
 
 
 ROI_MIN_SIZE = 16  # px, 드래그로 이보다 작게 그리면 클릭으로 보고 무시
+DET_COLORS = [QColor("#1D9E75"), QColor("#D85A30"), QColor("#378ADD"), QColor("#D4537E")]  # 검출 인스턴스 색 (맞춤/확대 표시 공용)
 ZOOM_STEP = 1.25   # 휠 한 칸당 배율
 MAX_SCALE = 40.0   # 최대 확대: 이미지 픽셀 1개 = 화면 40px
 PIXEL_GRID_SCALE = 6.0   # 이 배율 이상이면 마우스 아래 픽셀 칸을 표시
@@ -312,6 +313,7 @@ class ImageViewer(QLabel):
 
         painter = QPainter(scaled)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._draw_detections_zoomed(painter, to_screen, rx, ry, rw, rh, s)
         if self._roi is not None:
             x1, y1 = to_screen(self._roi[0], self._roi[1]).x(), to_screen(self._roi[0], self._roi[1]).y()
             x2, y2 = to_screen(self._roi[2], self._roi[3]).x(), to_screen(self._roi[2], self._roi[3]).y()
@@ -328,6 +330,50 @@ class ImageViewer(QLabel):
         painter.end()
         self.setPixmap(scaled)
         self.zoom_changed.emit(s)
+
+    def _draw_detections_zoomed(self, painter: QPainter, to_screen, rx: int, ry: int, rw: int, rh: int, s: float) -> None:
+        """확대 렌더용 검출 표시: 보이는 범위(rx,ry,rw,rh)의 마스크만 잘라 화면 배율로 그리고, bbox/라벨은 화면 px 크기로 그린다.
+
+        (예전에는 확대하면 마스크/bbox/라벨이 통째로 사라졌다. 마스크는 확대해도 맞춤 화면과 같은 색/투명도로 보인다.)
+        """
+        if not self._detections:
+            return
+        # 1단계: 마스크 (원본 해상도 마스크를 보이는 범위만 잘라서 변환 -> 확대 배율로 그린다)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, s < 2.0)   # 많이 확대하면 픽셀 경계를 또렷하게
+        for i, det in enumerate(self._detections):
+            if det.mask is None or det.mask.ndim != 2:
+                continue
+            sub = det.mask[ry:ry + rh, rx:rx + rw]
+            if sub.size == 0 or not sub.any():
+                continue
+            img = self._mask_to_qimage(sub, DET_COLORS[i % len(DET_COLORS)])
+            if img is not None:
+                painter.drawImage(QRectF(0.0, 0.0, sub.shape[1] * s, sub.shape[0] * s), img)
+        painter.restore()
+        # 2단계: bbox + 라벨 (선 굵기/글자는 화면 px 그대로)
+        if self._box_opacity <= 0.0:
+            return
+        painter.save()
+        painter.setOpacity(self._box_opacity)
+        font = QFont()
+        font.setPointSize(10)
+        painter.setFont(font)
+        for i, det in enumerate(self._detections):
+            color = DET_COLORS[i % len(DET_COLORS)]
+            x1, y1, x2, y2 = det.bbox
+            p1, p2 = to_screen(x1, y1), to_screen(x2, y2)
+            if p2.x() < 0 or p2.y() < 0 or p1.x() > painter.device().width() or p1.y() > painter.device().height():
+                continue   # 화면 밖
+            painter.setPen(QPen(color, 2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(QRectF(p1, p2))
+            text = f"obj{i}: {det.label} {det.confidence:.2f}"
+            tw = painter.fontMetrics().horizontalAdvance(text) + 8
+            painter.fillRect(QRectF(p1.x(), p1.y() - 18, tw, 18), color)
+            painter.setPen(QPen(QColor("white")))
+            painter.drawText(QPointF(p1.x() + 4, p1.y() - 5), text)
+        painter.restore()
 
     def wheelEvent(self, event) -> None:
         if self._zoom_enabled and self.image_size() is not None:
@@ -411,7 +457,7 @@ class ImageViewer(QLabel):
         font.setPointSize(11)
         painter.setFont(font)
 
-        colors = [QColor("#1D9E75"), QColor("#D85A30"), QColor("#378ADD"), QColor("#D4537E")]
+        colors = DET_COLORS
 
         # 1단계: 마스크 영역을 반투명 색으로 먼저 채운다 (bbox/라벨보다 아래에 깔림)
         for i, det in enumerate(self._detections):

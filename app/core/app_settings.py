@@ -121,7 +121,7 @@ class TcpSettings:
     terminator: str = "LF"          # LF | CRLF | CR | NONE
     include_rpy: bool = True
     max_picks: int = 1              # 한 응답에 담을 최대 픽 후보 수
-    sort_mode: str = "z_asc"        # z_asc | fitness_desc | conf_desc
+    sort_mode: str = "z_asc"        # z_asc | fitness_desc | conf_desc | center_asc
     # 동작
     warmup_on_start: bool = True    # 서버 시작 시 모델/CAD를 미리 로드 (첫 요청 지연 방지)
     keep_camera_open: bool = True   # 요청마다 카메라를 새로 열지 않음 (빠름)

@@ -48,6 +48,7 @@ SORT_MODES = {
     "z_asc": "z 오름차순 (카메라에 가까운 = 위에 있는 것 먼저)",
     "fitness_desc": "fitness 내림차순 (정합이 가장 확실한 것 먼저)",
     "conf_desc": "검출 confidence 내림차순",
+    "center_asc": "이미지 중심에 가까운 순 (픽점 픽셀 기준)",
 }
 
 
@@ -69,6 +70,7 @@ class PickCandidate:
     fitness: float
     rmse_mm: float
     was_flipped: bool = False
+    center_dist_px: float | None = None   # 픽점 픽셀과 이미지 중심의 거리 (sort_mode="center_asc"일 때만 계산)
     axis_cam: tuple[float, float, float] | None = None   # 부품 긴 축 방향 (카메라 좌표, 2D 기반만). 로봇 좌표 변환 시 Rz/Ry 계산용
 
 
@@ -111,11 +113,22 @@ class PickRunResult:
         return f"실패 [{self.error_code}] {self.error_message} (검출 {n_det}, {what} {n_ok}){t}"
 
 
+def _center_dist_px(uv, shape) -> float | None:
+    """픽점 픽셀 uv와 이미지 중심(shape=(H, W, ...))의 거리(px). uv가 없으면 None."""
+    if uv is None:
+        return None
+    h, w = shape[:2]
+    return float(((uv[0] - w / 2.0) ** 2 + (uv[1] - h / 2.0) ** 2) ** 0.5)
+
+
 def sort_candidates(cands: list[PickCandidate], mode: str) -> list[PickCandidate]:
     if mode == "fitness_desc":
         return sorted(cands, key=lambda c: -c.fitness)
     if mode == "conf_desc":
         return sorted(cands, key=lambda c: -c.confidence)
+    if mode == "center_asc":   # 거리를 못 구한 후보는 맨 뒤, 같으면 z 오름차순
+        return sorted(cands, key=lambda c: (c.center_dist_px is None,
+                                            c.center_dist_px if c.center_dist_px is not None else 0.0, c.xyz_mm[2]))
     return sorted(cands, key=lambda c: c.xyz_mm[2])   # z_asc (기본)
 
 
@@ -309,12 +322,18 @@ class PickPipeline:
 
         # ---- 픽 후보 정리 ----
         cands: list[PickCandidate] = []
+        intr_c = None
         for r in res.icp_results:
             if not r.ok:
                 continue
             det = res.detections[r.instance_id]
             e = r.pose["euler_deg"]
-            cands.append(PickCandidate(
+            dist = None
+            if snap.tcp.sort_mode == "center_asc":
+                if intr_c is None:
+                    intr_c = estimate_intrinsics_from_organized_pcd(pcd, valid)
+                dist = _center_dist_px(roi_filter.pick_pixel(r.pick_point_mm, pcd, valid, intr_c), pcd.shape)
+            cands.append(PickCandidate(center_dist_px=dist, 
                 instance_id=r.instance_id, label=det.label, confidence=float(det.confidence),
                 xyz_mm=tuple(float(v) for v in r.pick_point_mm),
                 rpy_deg=(float(e["roll_deg"]), float(e["pitch_deg"]), float(e["yaw_deg"])),
@@ -363,7 +382,9 @@ class PickPipeline:
                 continue
             det = res.detections[i]
             e = p.pose["euler_deg"]
-            cands.append(PickCandidate(
+            dist = (_center_dist_px(p.uv or rr.center_uv, pcd.shape)
+                    if snap.tcp.sort_mode == "center_asc" else None)
+            cands.append(PickCandidate(center_dist_px=dist, 
                 instance_id=i, label=det.label, confidence=float(det.confidence),
                 xyz_mm=tuple(float(v) for v in p.pick_point_mm),
                 rpy_deg=(float(e["roll_deg"]), float(e["pitch_deg"]), float(e["yaw_deg"])),

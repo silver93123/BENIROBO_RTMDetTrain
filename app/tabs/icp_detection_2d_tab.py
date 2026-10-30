@@ -83,41 +83,25 @@ class ICPDetection2DTab(ICPDetectionTestTab):
         for i, w in enumerate((self.chk_pos_pcd, self.chk_robot, self.lbl_robot)):
             self._zoom_row.insertWidget(i, w)
 
-        # 검출/보정 옵션을 5-2 서버가 쓰는 '12. 설정' 값과 맞춘다 (저장할 때마다 다시 맞춤)
+        # 검출/보정 옵션은 시작할 때만 '12. 설정' 값으로 채운다. 이후는 이 탭에서 직접 조정 (설정 저장에 덮어쓰이지 않음)
         self._sync_from_settings()
         get_settings().changed.connect(self._on_settings_changed)
 
     # ------------------------------------------------------------------
-    # 5-2와 같은 검출/보정 옵션 (12. 설정 탭 값)
+    # 검출/보정 옵션: 시작 시 12. 설정 값으로 채운 뒤 이 탭에서 직접 조정
     # ------------------------------------------------------------------
-    def _sync_from_settings(self) -> None:
-        """신뢰도 / 형상 보정 / 의심 마스크 제외 / 깊이 보정 위젯을 저장된 설정값으로 채운다 (5-2가 쓰는 값과 동일)."""
-        snap = get_settings().snapshot()
+    def _sync_extra_from_settings(self, snap) -> None:
+        """4-1 전용 위젯(깊이 보정 / 위치 읽기 방식)도 설정값으로 채운다."""
         r = snap.refine
-        pairs = ((self.chk_refine, r.enabled), (self.chk_depth_phi, r.depth_phi), (self.chk_overlap, r.resolve_overlap),
-                 (self.chk_suspect, r.hide_suspect), (self.chk_depth_correct, r.depth_correct),
-                 (self.chk_pos_pcd, r.pos_from_pcd))
-        widgets = [w for w, _v in pairs] + [self.spin_depth_tol, self.spin_min_score, self.thresh_slider]
-        for w in widgets:
+        for w, v in ((self.chk_depth_correct, r.depth_correct), (self.chk_pos_pcd, r.pos_from_pcd)):
             w.blockSignals(True)
-        try:
-            for w, v in pairs:
-                w.setChecked(bool(v))
-            self.spin_depth_tol.setValue(float(r.depth_tol_mm))
-            self.spin_min_score.setValue(float(r.min_score))
-            self.thresh_slider.setValue(int(round(snap.detection.conf_threshold * 100)))
-        finally:
-            for w in widgets:
-                w.blockSignals(False)
-        self.thresh_label.setText(f"{self.thresh_slider.value() / 100:.2f}")
+            w.setChecked(bool(v))
+            w.blockSignals(False)
 
     def _on_settings_changed(self) -> None:
-        self._sync_from_settings()
+        # 검출/보정 옵션은 이 탭에서 직접 조정하는 값이라 설정 저장에 덮어쓰지 않는다 ('12번 설정값 불러오기' 버튼으로 수동 동기화).
         self._refresh_robot_label()
-        if self._raw_detections:
-            self._on_refine_option_changed(force=True)   # 이미 검출한 결과도 새 보정/제외 기준으로 다시 만든다
-        else:
-            self._render_result_panel(self._icp_results)
+        self._render_result_panel(self._icp_results)
 
     # ------------------------------------------------------------------
     # 좌표계 (카메라 / 로봇)

@@ -38,7 +38,7 @@ import traceback
 from pathlib import Path
 
 import numpy as np
-from PyQt6.QtCore import QProcess, Qt, pyqtSignal
+from PyQt6.QtCore import QProcess, QTimer, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
@@ -309,7 +309,8 @@ class ICPDetectionTestTab(QWidget):
         self.chk_suspect.setChecked(get_settings().snapshot().refine.hide_suspect)
         self.chk_suspect.setToolTip(
             "형상 보정 결과의 품질이 나쁜 검출(템플릿 적합 점수 낮음 / 마스크 변경 과다 / 보정 포기 등)을 정합·좌표 계산에서 뺍니다.\n"
-            "5번/5-2 서버의 같은 옵션과 동일한 기준(12. 설정 탭의 의심 마스크 기준값)을 씁니다. 형상 보정이 켜져 있어야 동작합니다.")
+            "기준값은 바로 아래 칸에서 이 탭 안에서 직접 조정합니다 (처음엔 12. 설정 값으로 채워짐 - 5번/5-2 서버는 12. 설정 값을 씁니다).\n"
+            "형상 보정이 켜져 있어야 동작합니다.")
         self.chk_suspect.toggled.connect(lambda _=None: self._on_refine_option_changed())
         refine_row2.addWidget(self.chk_suspect)
         self.btn_refine_apply = QPushButton("보정 재적용")
@@ -318,6 +319,47 @@ class ICPDetectionTestTab(QWidget):
         refine_row2.addWidget(self.btn_refine_apply)
         refine_row2.addStretch(1)
         lay.addLayout(refine_row2)
+
+        # 의심 마스크 제외 기준: 이 탭에서 직접 조정한다 (값은 처음에 12. 설정 값으로 채워지고, 이후 설정 저장에 덮어써지지 않는다).
+        refine_row3 = QHBoxLayout()
+        sus_cfg = get_settings().snapshot().refine
+        self.chk_drop_failed = QCheckBox("보정 포기 포함")
+        self.chk_drop_failed.setChecked(sus_cfg.suspect_drop_failed)
+        self.chk_drop_failed.setToolTip("형상 보정을 포기(원본 유지)한 마스크도 의심으로 봅니다.")
+        refine_row3.addWidget(self.chk_drop_failed)
+        self._suspect_spins: dict[str, QDoubleSpinBox] = {}
+        for field_name, label, hi, tip in (
+                ("suspect_min_score", "score ≥", 1.5, "템플릿 적합 점수가 이 값 미만이면 제외"),
+                ("suspect_max_change", "변경률 ≤", 9.9, "변경률((추가+삭제)/원본 면적)이 이 값을 넘으면 제외"),
+                ("suspect_min_det_in_tpl", "원본∩템플릿 ≥", 1.0, "원본 검출 중 CAD 투영 안에 있는 비율이 이 값 미만이면 제외"),
+                ("suspect_max_occ_edge", "윤곽 가림 ≤", 1.0,
+                 "마스크 윤곽 중 바로 바깥이 더 가까운(앞에서 가리는 다른 볼트) 비율이 이 값을 넘으면 제외. 1.00 = 사용 안 함")):
+            refine_row3.addWidget(QLabel(label))
+            sp = QDoubleSpinBox()
+            sp.setRange(0.0, hi)
+            sp.setSingleStep(0.05)
+            sp.setDecimals(2)
+            sp.setMaximumWidth(64)
+            sp.setValue(float(getattr(sus_cfg, field_name)))
+            sp.setToolTip(tip)
+            self._suspect_spins[field_name] = sp
+            refine_row3.addWidget(sp)
+        self.btn_load_settings = QPushButton("12번 설정값 불러오기")
+        self.btn_load_settings.setToolTip(
+            "conf / 형상 보정 / 의심 마스크 기준을 12. 설정 탭에 저장된 값으로 다시 채웁니다.\n"
+            "(이 탭의 값은 직접 조정용이라 설정을 저장해도 자동으로 바뀌지 않습니다)")
+        self.btn_load_settings.clicked.connect(lambda _=False: self._sync_from_settings())
+        refine_row3.addWidget(self.btn_load_settings)
+        refine_row3.addStretch(1)
+        lay.addLayout(refine_row3)
+        # 기준값을 바꾸면 곧바로 다시 걸러 본다 (보정 계산이 있어 짧게 모아서 한 번만)
+        self._suspect_timer = QTimer(self)
+        self._suspect_timer.setSingleShot(True)
+        self._suspect_timer.setInterval(350)
+        self._suspect_timer.timeout.connect(lambda: self._on_refine_option_changed())
+        for sp in self._suspect_spins.values():
+            sp.valueChanged.connect(lambda _=None: self._suspect_timer.start())
+        self.chk_drop_failed.toggled.connect(lambda _=None: self._suspect_timer.start())
 
         self.refine_status = QLabel("")
         self.refine_status.setWordWrap(True)
@@ -755,12 +797,15 @@ class ICPDetectionTestTab(QWidget):
     def _drop_suspect_masks(self) -> None:
         """'의심 마스크 제외'가 켜져 있으면 보정 품질이 나쁜 검출을 _detections/_refine_results에서 함께 뺀다.
 
-        5번/5-2 서버(PickPipeline._drop_suspect)와 같은 함수/기준을 쓴다. 보정 결과가 없으면(꺼짐/실패) 아무것도 빼지 않는다.
+        5번/5-2 서버(PickPipeline._drop_suspect)와 같은 함수를 쓰되, 기준값은 이 탭의 입력칸 값이다 (직접 조정용).
+        보정 결과가 없으면(꺼짐/실패) 아무것도 빼지 않는다.
         """
         self._suspect_excluded = []
         if not self.chk_suspect.isChecked():
             return
-        cfg = dataclasses.replace(get_settings().snapshot().refine, hide_suspect=True)
+        cfg = dataclasses.replace(get_settings().snapshot().refine, hide_suspect=True,
+                                  suspect_drop_failed=self.chk_drop_failed.isChecked(),
+                                  **{k: float(sp.value()) for k, sp in self._suspect_spins.items()})
         self._detections, self._refine_results, self._suspect_excluded = PickPipeline._drop_suspect(
             self._detections, self._refine_results, cfg)
         if self._suspect_excluded:
@@ -828,6 +873,34 @@ class ICPDetectionTestTab(QWidget):
             self.refine_status.setText(f"보정 실패: {exc}")
             QMessageBox.warning(self, "형상 보정 실패", f"{exc}\n\n원본 마스크를 사용합니다.")
             return detections, []
+
+    def _sync_from_settings(self) -> None:
+        """conf / 형상 보정 / 의심 마스크 기준 위젯을 12. 설정 저장값으로 채운다 ('12번 설정값 불러오기' 버튼, 4-1은 시작할 때도)."""
+        snap = get_settings().snapshot()
+        r = snap.refine
+        pairs = ((self.chk_refine, r.enabled), (self.chk_depth_phi, r.depth_phi), (self.chk_overlap, r.resolve_overlap),
+                 (self.chk_suspect, r.hide_suspect), (self.chk_drop_failed, r.suspect_drop_failed))
+        spins = [(self.spin_depth_tol, r.depth_tol_mm), (self.spin_min_score, r.min_score)] + \
+                [(sp, getattr(r, k)) for k, sp in self._suspect_spins.items()]
+        widgets = [w for w, _v in pairs] + [w for w, _v in spins] + [self.thresh_slider]
+        for w in widgets:
+            w.blockSignals(True)
+        try:
+            for w, v in pairs:
+                w.setChecked(bool(v))
+            for w, v in spins:
+                w.setValue(float(v))
+            self.thresh_slider.setValue(int(round(snap.detection.conf_threshold * 100)))
+        finally:
+            for w in widgets:
+                w.blockSignals(False)
+        self.thresh_label.setText(f"{self.thresh_slider.value() / 100:.2f}")
+        self._sync_extra_from_settings(snap)
+        if self._raw_detections:
+            self._on_refine_option_changed(force=True)
+
+    def _sync_extra_from_settings(self, snap) -> None:
+        """하위 탭(4-1)이 자기 위젯을 설정값으로 채울 자리."""
 
     @_guarded
     def _on_refine_option_changed(self, force: bool = False) -> None:
@@ -1016,7 +1089,7 @@ class ICPDetectionTestTab(QWidget):
 
     def _no_detection_message(self) -> str:
         if self._suspect_excluded:
-            return f"검출 {len(self._suspect_excluded)}건이 모두 의심 마스크로 제외됐습니다 ('의심 마스크 제외'를 끄거나 12. 설정의 기준값을 조정하세요)."
+            return f"검출 {len(self._suspect_excluded)}건이 모두 의심 마스크로 제외됐습니다 ('의심 마스크 제외'를 끄거나 위 기준값을 조정하세요)."
         return "먼저 2D 검출을 실행하세요."
 
     def _out_xyz(self, xyz) -> tuple[float, float, float]:
