@@ -34,6 +34,7 @@ from app.core.detect_test_common import SETTINGS_HINT, busy_cursor, capture_fram
 from app.core.gripper_test import (
     DEFAULT_WINDOW, ClickedPoint, ClickedPointStore, GripperPointWorker, PlaneReport, analyze_plane, point_from_cloud,
 )
+from app.core import tcp_offset as tcpo
 from app.core import transform_matrix as tm
 from app.core.pick_server import PickServer, format_ng, format_ok
 from app.core.point_pair_calib import (
@@ -230,6 +231,7 @@ class GripperTestTab(QWidget):
         self.right_tabs.addTab(page_coord, "클릭 좌표 / 평면 검증")
         self.right_tabs.addTab(self._build_calib_page(), "좌표 변환 (카메라→로봇)")
         self.right_tabs.addTab(self._build_matrix_page(), "행렬 직접 입력")
+        self.right_tabs.addTab(self._build_tcp_page(), "TCP 오프셋")
         right.addWidget(self.right_tabs, stretch=3)
 
         right.addWidget(QLabel("요청 / 응답 로그   ◀ 수신   ▶ 송신"))
@@ -648,6 +650,161 @@ class GripperTestTab(QWidget):
     # =================================================================
     # 행렬 직접 입력 / 저장된 변환과 비교
     # =================================================================
+    # ------------------------------------------------------------------
+    # TCP 오프셋: Rz 회전 중심 != 그리퍼 중심 -> 소프트웨어에서 XY 보정 (app/core/tcp_offset.py)
+    # ------------------------------------------------------------------
+    def _build_tcp_page(self) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(0, 6, 0, 0)
+        info = QLabel("로봇 Rz를 돌리면 그리퍼 중심이 원을 그릴 때(회전 중심 != 그리퍼 중심), 로봇에 툴 좌표계를 등록하는 대신 "
+                      "응답 좌표(XY)를 이 오프셋만큼 미리 보정해서 줍니다. 5-2 서버 응답과 4-1 로봇 좌표 표시에 적용됩니다 "
+                      "(2D 기반 = Rz가 있는 경우). 로봇에 툴을 이미 등록했다면 이중 보정이 되니 끄세요.")
+        info.setWordWrap(True)
+        info.setStyleSheet("color: #555; font-size: 11px;")
+        lay.addWidget(info)
+
+        row = QHBoxLayout()
+        self.chk_tcp = QCheckBox("TCP 오프셋 보정 사용")
+        self.chk_tcp.setToolTip("켜면 로봇 좌표 응답의 XY가 (Rz(보정점 Rz) - Rz(이 픽의 Rz))·오프셋 만큼 바뀝니다. 저장해야 서버/4-1에 반영됩니다.")
+        self.chk_tcp.toggled.connect(lambda _=False: self._tcp_preview())
+        row.addWidget(self.chk_tcp)
+        row.addStretch(1)
+        lay.addLayout(row)
+
+        grid = QGridLayout()
+        self.tcp_spins = {}
+        for col, (key, label, rng, dec, tip) in enumerate((
+                ("dx", "dX (mm)", 500.0, 3, "Rz=0일 때 플랜지 → 그리퍼 중심 오프셋, 로봇 베이스 X"),
+                ("dy", "dY (mm)", 500.0, 3, "Rz=0일 때 플랜지 → 그리퍼 중심 오프셋, 로봇 베이스 Y"),
+                ("rz_cal_deg", "보정점 Rz (deg)", 360.0, 1,
+                 "'좌표 변환' 탭의 점 짝을 모을 때 로봇의 Rz. 보통 0 (Rz를 고정하고 모았다면 그 값)"))):
+            grid.addWidget(QLabel(label), 0, col)
+            sp = QDoubleSpinBox()
+            sp.setRange(-rng, rng)
+            sp.setDecimals(dec)
+            sp.setSingleStep(0.5)
+            sp.setToolTip(tip)
+            sp.valueChanged.connect(lambda _v: self._tcp_preview())
+            self.tcp_spins[key] = sp
+            grid.addWidget(sp, 1, col)
+        lay.addLayout(grid)
+
+        meas = QGroupBox("측정으로 계산")
+        ml = QVBoxLayout(meas)
+        hint = QLabel("바닥의 고정된 뾰족한 점에 그리퍼 중심을 맞춘 채 Rz만 바꿔 가며(예: 0, 90, 180, -90) 펜던트의 Rz, x, y를 "
+                      "한 줄에 하나씩 적으세요 (rz, x, y). 3개 이상, Rz 폭 90도 이상 권장.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #555; font-size: 11px;")
+        ml.addWidget(hint)
+        self.tcp_points = QPlainTextEdit()
+        self.tcp_points.setPlaceholderText("0, 403, 98\n90, 402, 103\n180, 401, 97\n-90, 404, 102")
+        self.tcp_points.setMinimumHeight(32)
+        self.tcp_points.setMaximumHeight(60)
+        ml.addWidget(self.tcp_points)
+        mrow = QHBoxLayout()
+        self.btn_tcp_fit = QPushButton("계산해서 dX, dY에 채우기")
+        self.btn_tcp_fit.clicked.connect(lambda _=False: self._on_tcp_fit())
+        mrow.addWidget(self.btn_tcp_fit)
+        mrow.addStretch(1)
+        ml.addLayout(mrow)
+        self.tcp_fit_label = QLabel("")
+        self.tcp_fit_label.setWordWrap(True)
+        self.tcp_fit_label.setStyleSheet("color: #555; font-size: 11px;")
+        ml.addWidget(self.tcp_fit_label)
+        lay.addWidget(meas)
+
+        prow = QHBoxLayout()
+        prow.addWidget(QLabel("미리보기 Rz (deg)"))
+        self.tcp_prev_rz = QDoubleSpinBox()
+        self.tcp_prev_rz.setRange(-360.0, 360.0)
+        self.tcp_prev_rz.setDecimals(1)
+        self.tcp_prev_rz.setSingleStep(15.0)
+        self.tcp_prev_rz.setValue(-36.0)
+        self.tcp_prev_rz.valueChanged.connect(lambda _v: self._tcp_preview())
+        prow.addWidget(self.tcp_prev_rz)
+        self.tcp_prev_label = QLabel("")
+        self.tcp_prev_label.setStyleSheet("color: #2a8a2a; font-size: 11px;")
+        prow.addWidget(self.tcp_prev_label, stretch=1)
+        lay.addLayout(prow)
+
+        brow = QHBoxLayout()
+        self.btn_tcp_save = QPushButton("저장")
+        self.btn_tcp_save.setStyleSheet("font-weight: 600;")
+        self.btn_tcp_save.setToolTip(f"{tcpo.TCP_OFFSET_PATH} 에 기록합니다. 4-1/5-2는 다음 요청부터 반영됩니다.")
+        self.btn_tcp_save.clicked.connect(lambda _=False: self._on_tcp_save())
+        self.btn_tcp_reload = QPushButton("저장값 불러오기")
+        self.btn_tcp_reload.clicked.connect(lambda _=False: self._tcp_load())
+        brow.addWidget(self.btn_tcp_save)
+        brow.addWidget(self.btn_tcp_reload)
+        brow.addStretch(1)
+        lay.addLayout(brow)
+        self.tcp_status = QLabel("")
+        self.tcp_status.setWordWrap(True)
+        self.tcp_status.setStyleSheet("color: #555; font-size: 11px;")
+        lay.addWidget(self.tcp_status)
+        lay.addStretch(1)
+        self._tcp_load()
+        return page
+
+    def _tcp_current(self) -> "tcpo.TcpOffset":
+        return tcpo.TcpOffset(enabled=self.chk_tcp.isChecked(), dx=self.tcp_spins["dx"].value(),
+                              dy=self.tcp_spins["dy"].value(), rz_cal_deg=self.tcp_spins["rz_cal_deg"].value())
+
+    def _tcp_load(self) -> None:
+        off = tcpo.load_tcp_offset()
+        for w in (self.chk_tcp, *self.tcp_spins.values()):
+            w.blockSignals(True)
+        self.chk_tcp.setChecked(off.enabled)
+        self.tcp_spins["dx"].setValue(off.dx)
+        self.tcp_spins["dy"].setValue(off.dy)
+        self.tcp_spins["rz_cal_deg"].setValue(off.rz_cal_deg)
+        for w in (self.chk_tcp, *self.tcp_spins.values()):
+            w.blockSignals(False)
+        self.tcp_status.setText("저장된 값을 불러왔습니다" if tcpo.TCP_OFFSET_PATH.is_file() else "저장된 TCP 오프셋이 없습니다 (보정 없음)")
+        self._tcp_preview()
+
+    def _tcp_preview(self) -> None:
+        off = self._tcp_current()
+        rz = self.tcp_prev_rz.value()
+        sx, sy = tcpo.shift_xy(off, rz)
+        if not off.active:
+            self.tcp_prev_label.setText("보정 꺼짐(또는 오프셋 0): XY 변화 없음")
+            return
+        self.tcp_prev_label.setText(f"Rz {rz:+.1f}°로 갈 때 로봇 좌표에 ΔX {sx:+.2f}, ΔY {sy:+.2f} mm 가 더해집니다 "
+                                    f"(반지름 {math.hypot(off.dx, off.dy):.2f} mm)")
+
+    def _on_tcp_fit(self) -> None:
+        try:
+            pts = tcpo.parse_points(self.tcp_points.toPlainText())
+            r = tcpo.fit_offset(pts)
+        except ValueError as exc:
+            QMessageBox.warning(self, "TCP 오프셋 계산", str(exc))
+            return
+        for key, v in zip(("dx", "dy"), r["d0"]):
+            self.tcp_spins[key].blockSignals(True)
+            self.tcp_spins[key].setValue(float(v))
+            self.tcp_spins[key].blockSignals(False)
+        bad = r["rms"] > 0.5
+        self.tcp_fit_label.setText(
+            f"점 {r['n']}개, Rz 폭 {r['angle_span']:.0f}°  →  dX {r['d0'][0]:+.2f}, dY {r['d0'][1]:+.2f} mm "
+            f"(반지름 {r['radius']:.2f}). 고정점 ({r['fixed_point'][0]:.1f}, {r['fixed_point'][1]:.1f}), 잔차 RMS {r['rms']:.2f} mm"
+            + ("  ⚠ 큽니다: 측정 점/각도 확인" if bad else "")
+            + f"\n(로봇 툴 좌표계에 등록할 때 값, Rx≈180 가정: X {r['tool'][0]:+.2f}, Y {r['tool'][1]:+.2f})")
+        self.tcp_fit_label.setStyleSheet(f"color: {'#c0392b' if bad else '#555'}; font-size: 11px;")
+        self._tcp_preview()
+        self.tcp_status.setText("계산 결과를 채웠습니다 - [저장]해야 서버/4-1에 반영됩니다")
+
+    def _on_tcp_save(self) -> None:
+        off = self._tcp_current()
+        try:
+            path = tcpo.save_tcp_offset(off)
+        except OSError as exc:
+            QMessageBox.warning(self, "저장 실패", f"{tcpo.TCP_OFFSET_PATH}\n{exc}")
+            return
+        state = "켜짐" if off.active else "꺼짐(또는 오프셋 0)"
+        self.tcp_status.setText(f"저장했습니다 ({path.name}) · 보정 {state}. 4-1/5-2는 다음 요청부터 반영됩니다.")
+
     def _build_matrix_page(self) -> QWidget:
         self._mat_ref: dict | None = None          # 비교 기준 B: {"R", "t", "src"}
         page = QWidget()

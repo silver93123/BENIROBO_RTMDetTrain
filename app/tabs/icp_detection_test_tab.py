@@ -1092,7 +1092,7 @@ class ICPDetectionTestTab(QWidget):
             return f"검출 {len(self._suspect_excluded)}건이 모두 의심 마스크로 제외됐습니다 ('의심 마스크 제외'를 끄거나 위 기준값을 조정하세요)."
         return "먼저 2D 검출을 실행하세요."
 
-    def _out_xyz(self, xyz) -> tuple[float, float, float]:
+    def _out_xyz(self, xyz, axis_cam=None) -> tuple[float, float, float]:
         """표시/로그에 쓸 픽 포인트 좌표. 기본은 카메라 좌표 그대로 (4-1이 '로봇 좌표로 변환'을 켜면 바꿔 돌려준다)."""
         return (float(xyz[0]), float(xyz[1]), float(xyz[2]))
 

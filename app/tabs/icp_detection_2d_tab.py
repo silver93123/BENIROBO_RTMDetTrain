@@ -109,15 +109,21 @@ class ICPDetection2DTab(ICPDetectionTestTab):
     def _robot_active(self) -> bool:
         return self.chk_robot.isChecked() and not self._output.check()[0]
 
-    def _out_xyz(self, xyz) -> tuple[float, float, float]:
+    def _out_xyz(self, xyz, axis_cam=None) -> tuple[float, float, float]:
         if self._robot_active():
-            v = self._output.convert(xyz)
+            rz = None
+            if axis_cam is not None and self._output.tcp_offset().active:   # TCP 오프셋 보정은 이 픽의 Rz가 있어야 한다
+                r = self._output.convert_rz_ry(axis_cam)
+                rz = None if r is None else r[0]
+            v = self._output.convert(xyz, rz)
             if v is not None:
                 return v
         return super()._out_xyz(xyz)
 
     def _frame_tag(self) -> str:
-        return " (로봇 좌표)" if self._robot_active() else ""
+        if not self._robot_active():
+            return ""
+        return " (로봇 좌표·TCP 보정)" if self._output.tcp_offset().active else " (로봇 좌표)"
 
     def _rot_text(self, p) -> str:
         """회전 표시 문구. 로봇 좌표 표시 중이면 볼트 긴 축을 로봇 좌표로 바꾼 Rz -> Ry (Rx 미사용, 툴 X축 = 볼트 축),
@@ -237,7 +243,7 @@ class ICPDetection2DTab(ICPDetectionTestTab):
                     p.ok, p.error = False, why
             self._pick2d.append(p)
             if p.ok:
-                px = self._out_xyz(p.pick_point_mm)
+                px = self._out_xyz(p.pick_point_mm, p.axis_cam)
                 self._log(f"  obj{i} 2D 기반 pick{self._frame_tag()}=({px[0]:+.1f}, {px[1]:+.1f}, "
                           f"{px[2]:+.1f}) mm  {self._rot_text(p)}  (φ{p.phi_deg:+.0f} θ{p.theta_deg:.0f}, "
                           f"Z 표면 {p.z_surface_mm:.1f} → 모델중심 {p.z_center_mm:.1f} · 픽점(카메라 Z) {p.pick_point_mm[2]:.1f}, roll 고정)")
@@ -294,7 +300,7 @@ class ICPDetection2DTab(ICPDetectionTestTab):
             uv = project_points(pts, self._intr)
             if p.uv is not None:    # 위치를 읽은 픽셀(템플릿 중심)에 찍는다 - 근사 핀홀 재투영은 점군과 어긋난다
                 uv = anchor_overlay_uv(uv, p.uv)
-            ox = self._out_xyz(origin)
+            ox = self._out_xyz(origin, p.axis_cam)
             label = (f"2D obj{i} (roll 고정)\n"
                      f"X{ox[0]:+.1f} Y{ox[1]:+.1f} Z{ox[2]:+.1f} mm{self._frame_tag()}\n"
                      f"{self._rot_text(p)}")
@@ -320,7 +326,7 @@ class ICPDetection2DTab(ICPDetectionTestTab):
                 err.setWordWrap(True)
                 lay.addWidget(err)
             else:
-                pos = self._out_xyz(p.pick_point_mm)
+                pos = self._out_xyz(p.pick_point_mm, p.axis_cam)
                 lay.addWidget(QLabel(f"pick{self._frame_tag()} X{pos[0]:+.1f} Y{pos[1]:+.1f} Z{pos[2]:+.1f} mm"))
                 lay.addWidget(QLabel(self._rot_text(p)))
                 info = QLabel(f"φ{p.phi_deg:+.0f}° θ{p.theta_deg:.0f}°  Z 표면 {p.z_surface_mm:.1f} → 모델중심 {p.z_center_mm:.1f} · 픽점(카메라 Z) {p.pick_point_mm[2]:.1f}")

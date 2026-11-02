@@ -47,6 +47,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from app.core.app_settings import CAMERA_CONFIG_PATHS, CameraSettings, SettingsStore, TcpSettings
 from app.core.pick_pipeline import PickCandidate, PickPipeline, PickRunResult, PipelineError
+from app.core import tcp_offset
 from app.core.robot_pose import rz_ry_from_axis
 
 REQUEST_TIMEOUT_S = 120.0     # 한 요청의 파이프라인 최대 대기 시간
@@ -150,6 +151,8 @@ def apply_output_frame(result: PickRunResult, output) -> PickRunResult:
         result.ok, result.error_code = False, "CALIB_BAD"
         result.error_message = f"변환 잔차 RMS {rms:.2f} mm 가 한계 {limit:.2f} mm 를 넘습니다"
         return result
+    off_fn = getattr(output, "tcp_offset", None)          # TCP 오프셋 보정 (13번 탭 'TCP 오프셋'): 회전 중심 != 그리퍼 중심
+    off = off_fn() if callable(off_fn) else None
     new = []
     for c in result.candidates:
         v = R @ np.asarray(c.xyz_mm, dtype=float) + t
@@ -159,6 +162,8 @@ def apply_output_frame(result: PickRunResult, output) -> PickRunResult:
             # 응답 필드 순서(roll, pitch, yaw)에 맞춰 (Rx=0, Ry, Rz). 툴 X축이 볼트 긴 축과 평행하다고 가정 (app/core/robot_pose.py)
             rz, ry, _vertical = rz_ry_from_axis(R @ np.asarray(c.axis_cam, dtype=float))
             kw["rpy_deg"] = (0.0, float(ry), float(rz))
+            if off is not None and off.active:
+                v = np.asarray(tcp_offset.compensate(v, rz, off), dtype=float)   # 이 Rz로 갈 때의 플랜지 XY
         new.append(dataclasses.replace(c, xyz_mm=(float(v[0]), float(v[1]), float(v[2])), **kw))
     result.candidates = new
     result.coord_frame = "robot"

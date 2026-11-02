@@ -124,6 +124,11 @@ class Detector:
             self.load_model()
 
         threshold = self.score_threshold if conf_threshold is None else conf_threshold
+        # 추론 엔진은 자기 score_threshold로 먼저 걸러서 돌려준다. 검출기를 재사용하면(4-1 탭 / 5번 서버 캐시)
+        # 처음 만들 때의 값에 묶여, 이후 conf를 낮춰도 낮은 신뢰도 검출이 영영 안 나온다 (올리는 것만 먹힘).
+        # 3번 탭처럼 매번 새로 만든 검출기와 결과가 같도록, 호출 때마다 이번 conf로 맞춘다.
+        if hasattr(self._inferencer, "score_threshold"):
+            self._inferencer.score_threshold = threshold
 
         gray = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
         if gray is None:

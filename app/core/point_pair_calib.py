@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 
 from app.core.paths import PROJECT_ROOT
+from app.core.tcp_offset import TcpOffset, TcpOffsetStore, compensate
 
 CALIB_PATH = PROJECT_ROOT / "data" / "gripper_calib.json"
 DEFAULT_RMS_LIMIT_MM = 2.0     # 이보다 잔차가 크면 응답에 변환을 적용하지 않는다
@@ -252,6 +253,10 @@ class SavedTransformOutput(OutputConfig):
         self._memo = ""
         self._n_used = 0
         self._err = ""
+        self._tcp_store = TcpOffsetStore()   # TCP 오프셋 보정 (13번 탭 'TCP 오프셋'에서 저장, 수정시각으로 다시 읽음)
+
+    def tcp_offset(self) -> TcpOffset:
+        return self._tcp_store.get()
 
     def set_enabled(self, on: bool) -> None:
         with self._lock:
@@ -317,10 +322,15 @@ class SavedTransformOutput(OutputConfig):
             d = self._R @ np.asarray(axis_cam, dtype=float)
         return rz_ry_from_axis(d)
 
-    def convert(self, xyz) -> tuple[float, float, float] | None:
-        """카메라 좌표 -> 로봇 좌표. 변환을 쓸 수 없으면 None."""
+    def convert(self, xyz, rz_deg: float | None = None) -> tuple[float, float, float] | None:
+        """카메라 좌표 -> 로봇 좌표. 변환을 쓸 수 없으면 None.
+
+        rz_deg(이 픽으로 로봇이 갈 Rz)를 주고 TCP 오프셋 보정이 켜져 있으면, 회전 중심과 그리퍼 중심 차이를 반영한
+        XY로 돌려준다 (app/core/tcp_offset.py). rz_deg가 없으면 보정하지 않는다."""
         if self.check()[0]:
             return None
         with self._lock:
             v = self._R @ np.asarray(xyz, dtype=float) + self._t
+        if rz_deg is not None:
+            return compensate(v, rz_deg, self.tcp_offset())
         return float(v[0]), float(v[1]), float(v[2])
